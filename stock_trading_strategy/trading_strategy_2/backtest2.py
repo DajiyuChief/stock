@@ -36,8 +36,8 @@ start_day = ''
 end_day = ''
 # 股票代码
 stock_code = ''
-
-
+# 条件三条件标志
+condition_flag = 1
 
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
@@ -49,11 +49,10 @@ def set_info(start, end, stock):
     global start_day
     global end_day
     global stock_code
-    start_day =start
+    start_day = start
     end_day = end
     stock_code = stock
     return
-
 
 
 def setdata(start_day, end_day, stock_code):
@@ -73,16 +72,17 @@ def setdata(start_day, end_day, stock_code):
     # history_data = df
     return df
 
+
 # 计算两个日期之间的交易日
-def workdays(start,end):
-     # 字符串格式日期的处理
+def workdays(start, end):
+    # 字符串格式日期的处理
     if type(start) == str:
-        start = datetime.strptime(start,'%Y-%m-%d').date()
+        start = datetime.strptime(start, '%Y-%m-%d').date()
     if type(end) == str:
-        end = datetime.strptime(end,'%Y-%m-%d').date()
+        end = datetime.strptime(end, '%Y-%m-%d').date()
     # 开始日期大，颠倒开始日期和结束日期
     if start > end:
-        start,end = end,start
+        start, end = end, start
     counts = 0
     while True:
         if start > end:
@@ -92,13 +92,41 @@ def workdays(start,end):
         start += timedelta(days=1)
     return counts
 
+
 # 日期前推 后推
-def date_calculate(date,days):
+def date_calculate(date, days):
     start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
     delta = timedelta(days=days)  # 采取时间差*1.5+100的方式确保能获得足够的交易日
     n_days_forward = start + delta  # 当前日期向前推n天的时间
     start_day = n_days_forward.strftime('%Y%m%d')
     return start_day
+
+
+# 比较三天之内每前后两天的RSI
+def compare_RSI(day1, day2, day3, baseline, flag):
+    rsi_day1 = getRSI(day1)[-1]
+    rsi_day2 = getRSI(day2)[-1]
+    rsi_day3 = getRSI(day3)[-1]
+    if flag == 1:
+        if rsi_day2 > (1 + baseline) * rsi_day1 or rsi_day3 > (1 + baseline) * rsi_day2:
+            return True
+        else:
+            return False
+    elif flag == -1:
+        if rsi_day2 > (1 - baseline) * rsi_day1 or rsi_day3 > (1 - baseline) * rsi_day2:
+            return True
+        else:
+            return False
+
+
+def sell_compare_RSI(day1, day2, day3, baseline):
+    rsi_day1 = getRSI(day1)[-1]
+    rsi_day2 = getRSI(day2)[-1]
+    rsi_day3 = getRSI(day3)[-1]
+    if rsi_day2 > (1 + baseline) * rsi_day1 or rsi_day3 > (1 + baseline) * rsi_day2:
+        return True
+    else:
+        return False
 
 
 def load_historical_data(stock_code, start_day, end_day):
@@ -127,8 +155,8 @@ def load_historical_data(stock_code, start_day, end_day):
 #     # high: getBoll()[0]
 #     return high, middle, low
 
-#重写getBoll()
-def getBoll(date = end_day):
+# 改写getBoll()
+def getBoll(date=end_day):
     # global history_data
     df = setdata(start_day, date, stock_code)
     # if date is None:
@@ -155,8 +183,8 @@ def getBoll(date = end_day):
 #     rsi = ta.RSI(df['close'].values, timeperiod=6)
 #     return rsi
 
-# 重写getRSI()
-def getRSI(date = end_day):
+# 改写getRSI()
+def getRSI(date=end_day):
     # if date is pd.DataFrame:
     #     df = history_data
     # else:
@@ -171,7 +199,7 @@ def getRSI(date = end_day):
 
 # 买入条件：触及下沿线情况
 # percent为用户指定的比例
-def buy_check_touch_low(percent,end):
+def buy_check_touch_low(percent, end):
     # 股票最低价已经触及布林线下沿线
     flag1 = False
     # 在（1）成立的前提下，出现RSI-6 大于上一日指定比例时买入
@@ -186,7 +214,7 @@ def buy_check_touch_low(percent,end):
         yesterdayRSI = getRSI(end)[-2]
         if nowRSI > (yesterdayRSI * (1 + percent)):
             flag2 = True
-    #print('buy_check_touch_low')
+    # print('buy_check_touch_low')
     return flag2
 
 
@@ -210,7 +238,7 @@ def buy_check_touch_low(percent,end):
 #             flag2 = True
 #     return flag2
 
-# 重写buy_check_touch_middle
+# 改写buy_check_touch_middle
 def buy_check_touch_middle(end):
     # 股价从下往上越过中界线，即最高价大于中界线
     flag1 = False
@@ -227,26 +255,55 @@ def buy_check_touch_middle(end):
         close = now_data['close']
         if close > open:
             flag2 = True
-   # print('buy_check_touch_middle')
+    # print('buy_check_touch_middle')
     return flag2
 
 
-def buy_check_condition_three(end):
-    #还未考虑工作日
+def buy_check_condition_three(end, rsi_flag=1):
     global variety_rsi
+    global condition_flag
+    day2 = date_calculate(end, 1)
+    # 考虑工作日
+    while True:
+        if not is_workday(datetime.strptime(day2, '%Y%m%d')):
+            day2 = date_calculate(day2, 1)
+        break
+    day3 = date_calculate(day2, 1)
+    while True:
+        if not is_workday(datetime.strptime(day3, '%Y%m%d')):
+            day3 = date_calculate(day3, 1)
+        break
+    day4 = date_calculate(day3, 1)
+    while True:
+        if not is_workday(datetime.strptime(day4, '%Y%m%d')):
+            day4 = date_calculate(day4, 1)
+        break
     flag_day1 = buy_check_touch_middle(end)
-    flag_day2 = buy_check_touch_middle(date_calculate(end,1))
-    flag_day3 = buy_check_touch_middle(date_calculate(end,2))
-    print(end,date_calculate(end,1),date_calculate(end,2))
-    print(flag_day1,flag_day2,flag_day3)
-    print(getRSI(end)[-1] > getRSI(end)[-2] *(1 + variety_rsi))
+    flag_day2 = buy_check_touch_middle(day2)
+    flag_day3 = buy_check_touch_middle(day3)
 
-    if flag_day1 and (flag_day2 or flag_day3) and (getRSI(end)[-1] > getRSI(end)[-2] *(1 + variety_rsi)):
-        variety_rsi = variety_rsi * 1.5
-        return buy_check_condition_three(date_calculate(end, 3)) + 1
-    variety_rsi = 0.1
-    return 0
+    # test
+    print(end, day2, day3)
+    print(flag_day1, flag_day2, flag_day3,compare_RSI(end,day2,day3,variety_rsi,rsi_flag))
+    print(rsi_flag)
+    print('___________________________')
 
+    if condition_flag == 0:
+        if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
+            variety_rsi = variety_rsi * 1.5
+            rsi_flag = rsi_flag * -1
+            return buy_check_condition_three(day4,rsi_flag) * -1
+        condition_flag = 1
+        variety_rsi = 0.1
+        return 1
+    elif condition_flag == 1:
+        if flag_day1 and (flag_day2 or flag_day3):
+            condition_flag = 0
+            rsi_flag = rsi_flag * -1
+            variety_rsi = variety_rsi * 1.5
+            return buy_check_condition_three(day4,rsi_flag) * -1
+        variety_rsi = 0.1
+        return 1
 
 
 # 对应文档特殊情况1
@@ -274,7 +331,7 @@ def buy_check_special(end):
                 if i > 3:
                     flag2 = True
                 break
-    #print('buy_check_special')
+    # print('buy_check_special')
     return flag2
 
 
@@ -288,7 +345,7 @@ def buy_check_rsi():
 
 # 卖出条件：触及上沿线情况
 # percent为用户指定的比例
-def sell_check_touch_high(percent,end):
+def sell_check_touch_high(percent, end):
     # 股票最高价已经触及布林线上沿线
     flag1 = False
     # 在（1）成立的前提下，在出现RSI-6 小于上一日指定比例时卖出
@@ -326,6 +383,33 @@ def sell_check_touch_middle(end):
             flag2 = True
     # print('sell_check_touch_middle')
     return flag2
+
+
+def sell_check_condition_three(end):
+    # 还未考虑工作日
+    global variety_rsi
+    day2 = date_calculate(end, 1)
+    while True:
+        if not is_workday(datetime.strptime(day2, '%Y%m%d')):
+            day2 = date_calculate(day2, 1)
+        break
+    day3 = date_calculate(day2, 1)
+    while True:
+        if not is_workday(datetime.strptime(day3, '%Y%m%d')):
+            day3 = date_calculate(day3, 1)
+        break
+    flag_day1 = sell_check_touch_middle(end)
+    flag_day2 = sell_check_touch_middle(date_calculate(end, 1))
+    flag_day3 = sell_check_touch_middle(date_calculate(end, 2))
+    print(end, date_calculate(end, 1), date_calculate(end, 2))
+    print(flag_day1, flag_day2, flag_day3)
+    print(getRSI(end)[-1] > getRSI(end)[-2] * (1 + variety_rsi))
+
+    if flag_day1 and (flag_day2 or flag_day3) and (getRSI(end)[-1] > getRSI(end)[-2] * (1 + variety_rsi)):
+        variety_rsi = variety_rsi * 1.5
+        return buy_check_condition_three(date_calculate(end, 3)) + 1
+    variety_rsi = 0.1
+    return 0
 
 
 # 对应文档特殊情况2
@@ -382,28 +466,28 @@ def buy_check_rsi():
     return False
 
 
-def buy_check(percent,end):
+def buy_check(percent, end):
     if check_special(end) == 1:
         return True
     if buy_check_special(end):
         return True
     # 如果买入条件1与卖出条件2同时出现，先执行卖出条件2；
-    if buy_check_touch_low(percent,end) and sell_check_touch_middle(end):
+    if buy_check_touch_low(percent, end) and sell_check_touch_middle(end):
         return False
-    if buy_check_touch_low(percent,end) or buy_check_touch_middle(end):
+    if buy_check_touch_low(percent, end) or buy_check_touch_middle(end):
         return True
     return False
 
 
-def sell_check(percent,end):
+def sell_check(percent, end):
     if check_special(end) == -1:
         return True
     if sell_check_special(end):
         return True
     # 如果买入条件2与卖出条件1同时出现，先执行买入条件2；
-    if buy_check_touch_middle(end) and sell_check_touch_high(percent,end):
+    if buy_check_touch_middle(end) and sell_check_touch_high(percent, end):
         return False
-    if sell_check_touch_high(percent,end) or sell_check_touch_middle(end):
+    if sell_check_touch_high(percent, end) or sell_check_touch_middle(end):
         return True
     return False
 
@@ -586,15 +670,13 @@ def trading_strategy2_position(principal, stock_code, percent, stoploss, span, i
         global now_data
         now_data = history_240[history_240['trade_date'] == d]
 
-        #test 条件三
+        # test 条件三
         print(buy_check_condition_three(date))
-
-
 
         price = now_data['close']
         # 单笔交易至少有100股
 
-        if (buy_check(percent,date)) & (principal > price * 100):
+        if (buy_check(percent, date)) & (principal > price * 100):
 
             # 剩余仓位
             cost = int(principal / (price * 100))
@@ -625,7 +707,7 @@ def trading_strategy2_position(principal, stock_code, percent, stoploss, span, i
                 print(d + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
                     principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
         # 确保有可卖出的股数
-        if sell_check(percent,date) and num > 0:
+        if sell_check(percent, date) and num > 0:
             principal += num * price
             all = principal
             charge = 0
@@ -705,16 +787,16 @@ def backtest2(span, stock_code, principal, percent, stoploss, isCharge, isWhole)
 def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss, isCharge, isWhole):
     start = datetime(int(start_day[0:4]), int(start_day[4:6]), int(start_day[6:8]))
     end = datetime(int(end_day[0:4]), int(end_day[4:6]), int(end_day[6:8]))
-    span = workdays(start,end)
-    #span = (end - start).days
+    span = workdays(start, end)
+    # span = (end - start).days
     day = end
     delta = timedelta(days=240 * 1.5 + 100)  # 采取时间差*1.5+100的方式确保能获得足够的交易日
     n_days_forward = day - delta  # 当前日期向前推n天的时间
     start_day = n_days_forward.strftime('%Y%m%d')
     end_day = day.strftime('%Y%m%d')
-    set_info(start_day,end_day,stock_code)
+    set_info(start_day, end_day, stock_code)
     df = []
-    print(start,end,span,day,delta,n_days_forward,start_day,end_day)
+    print(start, end, span, day, delta, n_days_forward, start_day, end_day)
     while True:
         try:
             df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
@@ -736,12 +818,12 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 
 
 # 调用示例：
-#setdata('20220525', '20220627', '300917.SZ')
-#backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
-print(buy_check_condition_three('20220627'))
+# setdata('20220525', '20220627', '300917.SZ')
+# backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
+#print(buy_check_condition_three('20220627'))
 date_backtest2('20220525', '20220627', '300917.SZ', 9999999, 0.1, 0.3, False, False)
 
-#print(getBoll()[1][-1], now_data['high'])
+# print(getBoll()[1][-1], now_data['high'])
 # print(history_240)
 # print(getBoll()[1][-1])
 # print(now_data['high'])
