@@ -6,11 +6,11 @@ import tushare as ts
 import talib as ta
 from datetime import date, datetime, timedelta, time
 from chinese_calendar import is_workday
-import time
+from data_modules import database_connection
 
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 sys.path.append("../data_modules/database_connection.py")
-from data_modules import database_connection
+
 
 # 回测前一交易日数据
 yesterday_data = pd.DataFrame
@@ -38,6 +38,8 @@ end_day = ''
 stock_code = ''
 # 条件三条件标志
 condition_flag = 1
+# 记录条件三执行几次
+condition_step = 0
 
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
@@ -262,6 +264,7 @@ def buy_check_touch_middle(end):
 def buy_check_condition_three(end, rsi_flag=1):
     global variety_rsi
     global condition_flag
+    global condition_step
     day2 = date_calculate(end, 1)
     # 考虑工作日
     while True:
@@ -292,17 +295,21 @@ def buy_check_condition_three(end, rsi_flag=1):
         if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
             variety_rsi = variety_rsi * 1.5
             rsi_flag = rsi_flag * -1
+            condition_step = condition_step +1
             return buy_check_condition_three(day4,rsi_flag) * -1
         condition_flag = 1
         variety_rsi = 0.1
+        print(condition_step)
         return 1
     elif condition_flag == 1:
         if flag_day1 and (flag_day2 or flag_day3):
             condition_flag = 0
             rsi_flag = rsi_flag * -1
-            variety_rsi = variety_rsi * 1.5
+            # variety_rsi = variety_rsi * 1.5
+            condition_step = condition_step + 1
             return buy_check_condition_three(day4,rsi_flag) * -1
         variety_rsi = 0.1
+        print(condition_step)
         return 1
 
 
@@ -646,6 +653,7 @@ def winning_percentage():
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge):
     global history_240
+    global condition_step
     # 取数起始日期
     start = history_240['trade_date'][len(history_240) - 1]
     start = history_240.loc[history_240['trade_date'] == start].index[0]
@@ -672,7 +680,7 @@ def trading_strategy2_position(principal, stock_code, percent, stoploss, span, i
 
         # test 条件三
         print(buy_check_condition_three(date))
-
+        condition_step = 0
         price = now_data['close']
         # 单笔交易至少有100股
 
@@ -828,6 +836,8 @@ date_backtest2('20220525', '20220627', '300917.SZ', 9999999, 0.1, 0.3, False, Fa
 # print(getBoll()[1][-1])
 # print(now_data['high'])
 # midBoll = getBoll()[1][-1]
+
+
 # high = now_data['high']
 # low = now_data['low']
 # print((high > midBoll) & (midBoll > low))
