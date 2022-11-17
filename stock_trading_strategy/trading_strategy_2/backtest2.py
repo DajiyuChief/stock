@@ -130,6 +130,13 @@ def sell_compare_RSI(day1, day2, day3, baseline):
     else:
         return False
 
+def become_workday(date):
+    while True:
+        if not is_workday(datetime.strptime(date, '%Y%m%d')):
+            date = date_calculate(date, 1)
+        else:
+            break
+    return date
 
 def load_historical_data(stock_code, start_day, end_day):
     df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
@@ -265,22 +272,25 @@ def buy_check_condition_three(end, rsi_flag=1):
     global variety_rsi
     global condition_flag
     global condition_step
-    day2 = date_calculate(end, 1)
+    day2 = become_workday(date_calculate(end, 1))
+    day3 = become_workday(date_calculate(day2, 1))
+    day4 = become_workday(date_calculate(day3, 1))
+    #day2 = date_calculate(end, 1)
     # 考虑工作日
-    while True:
-        if not is_workday(datetime.strptime(day2, '%Y%m%d')):
-            day2 = date_calculate(day2, 1)
-        break
-    day3 = date_calculate(day2, 1)
-    while True:
-        if not is_workday(datetime.strptime(day3, '%Y%m%d')):
-            day3 = date_calculate(day3, 1)
-        break
-    day4 = date_calculate(day3, 1)
-    while True:
-        if not is_workday(datetime.strptime(day4, '%Y%m%d')):
-            day4 = date_calculate(day4, 1)
-        break
+    # while True:
+    #     if not is_workday(datetime.strptime(day2, '%Y%m%d')):
+    #         day2 = date_calculate(day2, 1)
+    #     break
+    # day3 = date_calculate(day2, 1)
+    # while True:
+    #     if not is_workday(datetime.strptime(day3, '%Y%m%d')):
+    #         day3 = date_calculate(day3, 1)
+    #     break
+    # day4 = date_calculate(day3, 1)
+    # while True:
+    #     if not is_workday(datetime.strptime(day4, '%Y%m%d')):
+    #         day4 = date_calculate(day4, 1)
+    #     break
     flag_day1 = buy_check_touch_middle(end)
     flag_day2 = buy_check_touch_middle(day2)
     flag_day3 = buy_check_touch_middle(day3)
@@ -290,7 +300,7 @@ def buy_check_condition_three(end, rsi_flag=1):
     print(flag_day1, flag_day2, flag_day3,compare_RSI(end,day2,day3,variety_rsi,rsi_flag))
     print(rsi_flag)
     print('___________________________')
-
+    #
     if condition_flag == 0:
         if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
             variety_rsi = variety_rsi * 1.5
@@ -312,6 +322,22 @@ def buy_check_condition_three(end, rsi_flag=1):
         print(condition_step)
         return 1
 
+# 单独列出做特殊处理
+def check_buy_condition_three(date):
+    global condition_step
+    var = 1
+    sell_check_condition_three(date)
+    if condition_step != 0:
+        if condition_step % 2 == 0:
+            #sell()
+        else:
+            #buy()
+        #要考虑其中包含休息日的可能
+        while var <= condition_step *3:
+        #date是下个周期开始日期
+            date = become_workday(date_calculate(date,1))
+            var = var +1
+        return date
 
 # 对应文档特殊情况1
 def buy_check_special(end):
@@ -392,31 +418,58 @@ def sell_check_touch_middle(end):
     return flag2
 
 
-def sell_check_condition_three(end):
-    # 还未考虑工作日
+def sell_check_condition_three(end, rsi_flag=-1):
     global variety_rsi
-    day2 = date_calculate(end, 1)
-    while True:
-        if not is_workday(datetime.strptime(day2, '%Y%m%d')):
-            day2 = date_calculate(day2, 1)
-        break
-    day3 = date_calculate(day2, 1)
-    while True:
-        if not is_workday(datetime.strptime(day3, '%Y%m%d')):
-            day3 = date_calculate(day3, 1)
-        break
+    global condition_flag
+    global condition_step
+    day2 = become_workday(date_calculate(end, 1))
+    day3 = become_workday(date_calculate(day2, 1))
+    day4 = become_workday(date_calculate(day3, 1))
+    # 考虑工作日
+    # while True:
+    #     if not is_workday(datetime.strptime(day2, '%Y%m%d')):
+    #         day2 = date_calculate(day2, 1)
+    #     break
+    # day3 = date_calculate(day2, 1)
+    # while True:
+    #     if not is_workday(datetime.strptime(day3, '%Y%m%d')):
+    #         day3 = date_calculate(day3, 1)
+    #     break
+    # day4 = date_calculate(day3, 1)
+    # while True:
+    #     if not is_workday(datetime.strptime(day4, '%Y%m%d')):
+    #         day4 = date_calculate(day4, 1)
+    #     break
     flag_day1 = sell_check_touch_middle(end)
-    flag_day2 = sell_check_touch_middle(date_calculate(end, 1))
-    flag_day3 = sell_check_touch_middle(date_calculate(end, 2))
-    print(end, date_calculate(end, 1), date_calculate(end, 2))
-    print(flag_day1, flag_day2, flag_day3)
-    print(getRSI(end)[-1] > getRSI(end)[-2] * (1 + variety_rsi))
+    flag_day2 = sell_check_touch_middle(day2)
+    flag_day3 = sell_check_touch_middle(day3)
 
-    if flag_day1 and (flag_day2 or flag_day3) and (getRSI(end)[-1] > getRSI(end)[-2] * (1 + variety_rsi)):
-        variety_rsi = variety_rsi * 1.5
-        return buy_check_condition_three(date_calculate(end, 3)) + 1
-    variety_rsi = 0.1
-    return 0
+    # test
+    print(end, day2, day3)
+    print(flag_day1, flag_day2, flag_day3,compare_RSI(end,day2,day3,variety_rsi,rsi_flag))
+    print(rsi_flag)
+    print('___________________________')
+
+    if condition_flag == 0:
+        if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
+            variety_rsi = variety_rsi * 1.5
+            rsi_flag = rsi_flag * -1
+            condition_step = condition_step +1
+            return sell_check_condition_three(day4,rsi_flag) * -1
+        condition_flag = 1
+        variety_rsi = 0.1
+        print(condition_step)
+        return 1
+    elif condition_flag == 1:
+        if flag_day1 and (flag_day2 or flag_day3):
+            condition_flag = 0
+            rsi_flag = rsi_flag * -1
+            # variety_rsi = variety_rsi * 1.5
+            condition_step = condition_step + 1
+            return sell_check_condition_three(day4,rsi_flag) * -1
+        variety_rsi = 0.1
+        print(condition_step)
+        return 1
 
 
 # 对应文档特殊情况2
