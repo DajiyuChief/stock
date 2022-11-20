@@ -152,6 +152,14 @@ def become_workday(date):
             break
     return date
 
+def become_workday_yes(date):
+    while True:
+        if not is_workday(datetime.strptime(date, '%Y%m%d')):
+            date = date_calculate(date, -1)
+        else:
+            break
+    return date
+
 
 def set_cost(principal):
     price = now_data['close']
@@ -238,7 +246,6 @@ def buy_check_touch_low(percent, end):
     flag1 = False
     # 在（1）成立的前提下，出现RSI-6 大于上一日指定比例时买入
     flag2 = False
-
     lowBoll = getBoll(end)[2][-1]
     low = now_data['low']
     if lowBoll >= low:
@@ -248,7 +255,6 @@ def buy_check_touch_low(percent, end):
         yesterdayRSI = getRSI(end)[-2]
         if nowRSI > (yesterdayRSI * (1 + percent)):
             flag2 = True
-    # print('buy_check_touch_low')
     return flag2
 
 
@@ -321,11 +327,14 @@ def buy_check_condition_three(end, rsi_flag=1):
     flag_day3 = buy_check_touch_middle(day3)
 
     # test
-    print(end, day2, day3)
-    print(flag_day1, flag_day2, flag_day3, compare_RSI(end, day2, day3, variety_rsi, rsi_flag))
-    print(rsi_flag)
-    print('___________________________')
-    #
+    # print(end, day2, day3)
+    # print(flag_day1, flag_day2, flag_day3, compare_RSI(end, day2, day3, variety_rsi, rsi_flag))
+    # print('___________')
+    # print(rsi_flag)
+    # print('___________')
+    # print(variety_rsi)
+    # print('___________________________')
+
     if condition_flag == 0:
         if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
             variety_rsi = variety_rsi * 1.5
@@ -334,7 +343,7 @@ def buy_check_condition_three(end, rsi_flag=1):
             return buy_check_condition_three(day4, rsi_flag) * -1
         condition_flag = 1
         variety_rsi = 0.1
-        print(condition_step)
+        # print(condition_step)
         return 1
     elif condition_flag == 1:
         if flag_day1 and (flag_day2 or flag_day3):
@@ -344,26 +353,35 @@ def buy_check_condition_three(end, rsi_flag=1):
             condition_step = condition_step + 1
             return buy_check_condition_three(day4, rsi_flag) * -1
         variety_rsi = 0.1
-        print(condition_step)
+        # print(condition_step)
         return 1
 
 
 # 单独列出做特殊处理
-# def check_buy_condition_three(date):
-#     global condition_step
-#     var = 1
-#     sell_check_condition_three(date)
-#     if condition_step != 0:
-#         if condition_step % 2 == 0:
-#             #sell()
-#         else:
-#             #buy()
-#         #要考虑其中包含休息日的可能
-#         while var <= condition_step *3:
-#         #date是下个周期开始日期
-#             date = become_workday(date_calculate(date,1))
-#             var = var +1
-#         return date
+def check_buy_condition_three(stock_code, isCharge, date, price):
+    global condition_step
+    global transaction_signal
+    var = 1
+    #sell_check_condition_three(date)
+    step = condition_step
+    if condition_step != 0:
+        while condition_step > 0:
+            if len(transaction_signal) == 0 or transaction_signal[-1] == -1:
+                buy(stock_code, isCharge, date, price)
+                # transaction_signal.append(1)
+            elif transaction_signal[-1] == 1:
+                sell(stock_code, isCharge, date, price)
+                # transaction_signal.append(-1)
+            date = become_workday(date_calculate(date,3))
+            price = history_240[history_240['trade_date'] == date]['close'].values[-1]
+            condition_step = condition_step - 1
+        #要考虑其中包含休息日的可能
+        # while var <= step *3:
+        # #date是下个周期开始日期
+        #     date = become_workday(date_calculate(date,1))
+        #     var = var +1
+        condition_step = 0
+        return date
 
 # 对应文档特殊情况1
 def buy_check_special(end):
@@ -401,43 +419,51 @@ def buy_check_rsi():
         return True
     return False
 
+def is_buy_condition_three(date):
+    global condition_step
+    buy_check_condition_three(date)
+    if condition_step != 0:
+        return True
+    return False
 
-def buy(stock_code, percent, isCharge, day, price):
+def buy(stock_code, isCharge, day, price):
     global num
     global cost
     global all
     global principal
+    global transaction_signal
 
-    if (buy_check(percent, day)) & (principal > price * 100):
-        cost = set_cost(principal)
-        # # 剩余仓位
-        # cost = int(principal / (price * 100))
-        # # 加仓2p-1
-        # cost = ((0.7 + winning_percentage()) * 2 - 1) * cost
-        # # 取满100股
-        # cost = math.floor(cost / 100) * 100
-        if cost > 0:
-            num += cost * 100
-            principal -= cost * price * 100
-            charge = 0
-            if isCharge:
-                charge = cost * price * 100 * 0.0003
-                # 佣金最低5元
-                if charge < 5:
-                    charge = 5
-                principal -= charge
-                all -= charge
-            while principal < 0:
-                cost -= 1
-                num -= 100
-                principal += price * 100
-        if num > 0:
-            sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                        VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-                  (stock_code, day, True, price, num, charge, False, all)
-            db.commit_data(sql)
-            print(day + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-                principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
+    transaction_signal.append(1)
+    # if (buy_check(percent, day)) & (principal > price * 100):
+    cost = set_cost(principal)
+    # # 剩余仓位
+    # cost = int(principal / (price * 100))
+    # # 加仓2p-1
+    # cost = ((0.7 + winning_percentage()) * 2 - 1) * cost
+    # # 取满100股
+    # cost = math.floor(cost / 100) * 100
+    if cost > 0:
+        num += cost * 100
+        principal -= cost * price * 100
+        charge = 0
+        if isCharge:
+            charge = cost * price * 100 * 0.0003
+            # 佣金最低5元
+            if charge < 5:
+                charge = 5
+            principal -= charge
+            all -= charge
+        while principal < 0:
+            cost -= 1
+            num -= 100
+            principal += price * 100
+    if num > 0:
+        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
+                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
+              (stock_code, day, True, price, num, charge, False, all)
+        db.commit_data(sql)
+        print(day + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
+            principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
 
 
 # 卖出条件：触及上沿线情况
@@ -509,10 +535,10 @@ def sell_check_condition_three(end, rsi_flag=-1):
     flag_day3 = sell_check_touch_middle(day3)
 
     # test
-    print(end, day2, day3)
-    print(flag_day1, flag_day2, flag_day3, compare_RSI(end, day2, day3, variety_rsi, rsi_flag))
-    print(rsi_flag)
-    print('___________________________')
+    # print(end, day2, day3)
+    # print(flag_day1, flag_day2, flag_day3, compare_RSI(end, day2, day3, variety_rsi, rsi_flag))
+    # print(rsi_flag)
+    # print('___________________________')
 
     if condition_flag == 0:
         if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
@@ -522,7 +548,7 @@ def sell_check_condition_three(end, rsi_flag=-1):
             return sell_check_condition_three(day4, rsi_flag) * -1
         condition_flag = 1
         variety_rsi = 0.1
-        print(condition_step)
+        # print(condition_step)
         return 1
     elif condition_flag == 1:
         if flag_day1 and (flag_day2 or flag_day3):
@@ -532,9 +558,33 @@ def sell_check_condition_three(end, rsi_flag=-1):
             condition_step = condition_step + 1
             return sell_check_condition_three(day4, rsi_flag) * -1
         variety_rsi = 0.1
-        print(condition_step)
+        # print(condition_step)
         return 1
 
+
+# 同样特殊处理
+def check_sell_condition_three(date):
+    global condition_step
+    global transaction_signal
+    var = 1
+    sell_check_condition_three(date)
+    step = condition_step
+    if condition_step != 0:
+        while condition_step > 0:
+            if len(transaction_signal) == 0 or transaction_signal[-1] == -1:
+                # buy
+                transaction_signal.append(1)
+            elif transaction_signal[-1] == 1:
+                # sell
+                transaction_signal.append(-1)
+            condition_step = condition_step - 1
+        #要考虑其中包含休息日的可能
+        while var <= step *3:
+        #date是下个周期开始日期
+            date = become_workday(date_calculate(date,1))
+            var = var +1
+            condition_step = 0
+        return date
 
 # 对应文档特殊情况2
 def sell_check_special(end):
@@ -568,7 +618,7 @@ def sell_check_special(end):
 def check_special(end):
     highBoll = getBoll(end)[0][-1]
     high = now_data['high']
-    lowBoll = getBoll()[2][-1]
+    lowBoll = getBoll(end)[2][-1]
     low = now_data['low']
     if high >= highBoll and lowBoll >= low:
         open = now_data['open']
@@ -589,6 +639,12 @@ def buy_check_rsi():
         return True
     return False
 
+def is_sell_condition_three(date):
+    global condition_step
+    sell_check_condition_three(date)
+    if condition_step != 0:
+        return True
+    return False
 
 def buy_check(percent, end):
     if check_special(end) == 1:
@@ -596,11 +652,12 @@ def buy_check(percent, end):
     if buy_check_special(end):
         return True
     # 如果买入条件1与卖出条件2同时出现，先执行卖出条件2；
-    if buy_check_touch_low(percent, end) and sell_check_touch_middle(end):
-        return False
-    if buy_check_touch_low(percent, end) or buy_check_touch_middle(end):
-        return True
+    # if buy_check_touch_low(percent, end) and sell_check_touch_middle(end):
+    #     return False
+    # if buy_check_touch_low(percent, end) or buy_check_touch_middle(end):
+    #     return True
     return False
+
 
 
 def sell_check(percent, end):
@@ -616,65 +673,70 @@ def sell_check(percent, end):
     return False
 
 
-def sell(stock_code, percent, isCharge, day, price):
+def sell(stock_code, isCharge, day, price):
     global num
     global cost
     global all
     global principal
-    if sell_check(percent, day) and num > 0:
-        principal += num * price
-        all = principal
-        charge = 0
-        stamp_tax = 0
-        if isCharge:
-            charge = cost * price * 100 * 0.0003
-            # 佣金最低5元
-            if charge < 5:
-                charge = 5
-            # 印花税
-            stamp_tax = cost * price * 100 * 0.001
-            charge += stamp_tax
-            principal -= charge
-            all -= charge
-        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-              (stock_code, day, False, price, num, charge, False, all)
-        db.commit_data(sql)
-        print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-            principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
-        num = 0
+    global transaction_signal
+    #if sell_check(percent, day) and num > 0:
+    transaction_signal.append(-1)
+    principal += num * price
+    all = principal
+    charge = 0
+    stamp_tax = 0
+    if isCharge:
+        charge = cost * price * 100 * 0.0003
+        # 佣金最低5元
+        if charge < 5:
+            charge = 5
+        # 印花税
+        stamp_tax = cost * price * 100 * 0.001
+        charge += stamp_tax
+        principal -= charge
+        all -= charge
+    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
+                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
+          (stock_code, day, False, price, num, charge, False, all)
+    db.commit_data(sql)
+    print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
+        principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
+    num = 0
 
 
 #止损
-def stop_loss(stock_code, stoploss, isCharge, day, price):
+def stop_loss(stock_code,isCharge, day, price):
     global num
     global cost
     global all
     global principal
     global begin
-    if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
-        print("强制止损")
-        principal += num * price
-        all = principal
-        charge = 0
-        stamp_tax = 0
-        if isCharge:
-            charge = cost * price * 100 * 0.0003
-            # 佣金最低5元
-            if charge < 5:
-                charge = 5
-            # 印花税
-            stamp_tax = cost * price * 100 * 0.001
-            charge += stamp_tax
-            principal -= charge
-            all -= charge
-        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-              (stock_code, day, False, price, num, charge, True, all)
-        db.commit_data(sql)
-        print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-            principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
-        num = 0
+    global transaction_signal
+
+    transaction_signal.append(-1)
+    #if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
+    print("强制止损")
+    principal += num * price
+    all = principal
+    charge = 0
+    stamp_tax = 0
+    if isCharge:
+        charge = cost * price * 100 * 0.0003
+        # 佣金最低5元
+        if charge < 5:
+            charge = 5
+        # 印花税
+        stamp_tax = cost * price * 100 * 0.001
+        charge += stamp_tax
+        principal -= charge
+        all -= charge
+    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
+                                                                            VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
+          (stock_code, day, False, price, num, charge, True, all)
+    db.commit_data(sql)
+    print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
+        principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
+    num = 0
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_whole(principal, stock_code, percent, stoploss, span, isCharge):
@@ -849,7 +911,10 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     # 起始资金数，用于判断是否需要强制止损
     begin = principal
     # db = database_connection.MySQLDb()
-    for d in day:
+    # 用迭代器跳过指定天数
+    day_iter = iter(day)
+    for d in day_iter:
+    # for d in day:
         end = history_240.loc[history_240['trade_date'] == d].index[0]
         global history_data
         history_data = history_240.loc[start:end]
@@ -863,13 +928,29 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
 
         # test 条件三
         # print(buy_check_condition_three(date))
-
+        #
         # condition_step = 0
 
         price = now_data['close'].values[-1]
-
         # 单笔交易至少有100股
-        buy(stock_code, percent, isCharge, d, price)
+        if principal > price * 100:
+            if (buy_check(percent, d)) :
+                buy(stock_code, isCharge, d, price)
+            elif buy_check_touch_low(percent, d):
+                sell_check_condition_three(d)
+                if condition_step != 0:
+                    break
+            #哪个优先级高
+            elif buy_check_touch_low(percent,d) or is_buy_condition_three(d):
+                if is_buy_condition_three(d):
+                    new_d = check_buy_condition_three(stock_code, isCharge, d, price)
+                    span_days = workdays(datetime.strptime(d,'%Y%m%d'),datetime.strptime(new_d,'%Y%m%d'))
+                    # 跳过指定天数
+                    for i in range(span_days):
+                        next(day_iter)
+                else:
+                    buy(stock_code,isCharge,d,price)
+
         # if (buy_check(percent, date)) & (principal > price * 100):
         #
         #     # 剩余仓位
@@ -902,7 +983,9 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         #             principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
 
         # 确保有可卖出的股数
-        sell(stock_code, percent, isCharge, d, price)
+        if sell_check(percent, d) and num > 0:
+            print('sell')
+            sell(stock_code, isCharge, d, price)
         # if sell_check(percent, date) and num > 0:
         #     principal += num * price
         #     all = principal
@@ -928,7 +1011,9 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
 
 
         # 强制止损
-        stop_loss(stock_code, stoploss, isCharge, d, price)
+        if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
+            print('stop')
+            stop_loss(stock_code, isCharge, d, price)
         # if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
         #     print("强制止损")
         #     principal += num * price
