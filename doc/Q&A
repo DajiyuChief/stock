@@ -20,7 +20,7 @@ ______________________
 
 buy_check_touch_low(percent, end) or buy_check_touch_middle(end):
 触及下沿线情况 和 触及中线 有没有优先
+下沿线优先
 
-
-2.
+2.触及中线 只要看收盘价就行
 
