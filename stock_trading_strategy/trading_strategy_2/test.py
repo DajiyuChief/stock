@@ -1,8 +1,11 @@
 from datetime import datetime
 
-from trading2 import getBoll
+import numpy as np
+import pandas as pd
 
-from backtest2 import setdata
+from trading2 import getBoll
+import gol
+from backtest2 import setdata, date_calculate, set_info,date_backtest2
 from backtest2 import getRSI
 import talib as ta
 import tushare as ts
@@ -10,7 +13,9 @@ from backtest2 import workdays
 from chinese_calendar import is_workday
 from datetime import datetime, timedelta
 from chinese_calendar import is_holiday
+
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
+
 
 def getBoll(df):
     # global history_data
@@ -30,6 +35,7 @@ def getBoll(df):
     # print('getBoll')
     return high, middle, low
 
+
 def newget(data):
     data['upper'], data['middle'], data['lower'] = ta.BBANDS(
         data.close.values,
@@ -37,13 +43,15 @@ def newget(data):
         nbdevup=2,
         nbdevdn=2,
         matype=0)
+
+
 def get_boll(date):
     data = setdata('20220320', '20220615', '600256.SH')
     newget(data)
     high = data.loc[data['trade_date'] == date].upper.values[0]
     middle = data.loc[data['trade_date'] == date].middle.values[0]
     low = data.loc[data['trade_date'] == date].lower.values[0]
-    return high,middle,low
+    return high, middle, low
 
 
 def tradedays(start, end):
@@ -68,17 +76,75 @@ def tradedays(start, end):
     return counts
 
 
+def get_funds_data(code):
+    df = pro.fund_daily(**{
+        "trade_date": "",
+        "start_date": "",
+        "end_date": "",
+        "ts_code": code,
+        "limit": "",
+        "offset": ""
+    }, fields=[
+        "ts_code",
+        "trade_date",
+        "pre_close",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "pct_chg",
+        "vol",
+        "amount"
+    ])
+    return df
 
-data = setdata('20220320', '20220615', '600256.SH')
-data2 = setdata('20220320', '20220627', '300917.SZ')
-close = data.close.values
-data['rsi'] = ta.RSI(close, timeperiod=6)
-newget(data)
-df = pro.trade_cal(exchange='SZSE', start_date='20220220', end_date='20220627')
-da1 = df.loc[df['cal_date' ]== '20220320'].index[0]
-da2 = df.loc[df['cal_date' ]== '20220615'].index[0] + 1
+
+def date_calculate(date, days):
+    start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
+    if days >= 0:
+        while days > 0:
+            if is_holiday(start) or start.weekday() == 5 or start.weekday() == 6:
+                start += timedelta(days=1)
+                continue
+            days -= 1
+            start += timedelta(days=1)
+    else:
+        while days < 0:
+            start -= timedelta(days=1)
+            if is_holiday(start) or start.weekday() == 5 or start.weekday() == 6:
+                start -= timedelta(days=1)
+                continue
+            days += 1
+    day = start.strftime('%Y%m%d')
+    return day
+
+
+def date_calculate2(date, days):
+    start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
+    delta = timedelta(days=days)
+    n_days_forward = start + delta
+    n_days_forward = n_days_forward.strftime('%Y%m%d')
+    return n_days_forward
+
+
+# print(date_calculate2('20220520',2))
+# print(date_calculate('20220520',-5))
+# print(get_funds_data('516950.SH'))
+# data = pd.DataFrame
+# data = set_info('20220320', '20220615', '600256.SH')
+# data['rsi_var'] = data['rsi'].diff()/np.roll(data['rsi'], shift=1)
+# data['low-lowboll'] = data['low'] - data['lower']
+# data['high-highboll'] = data['high'] - data['upper']
+# data['high-mid'] = data['high'] - data['middle']
+# data['mid-low'] = data['middle'] - data['low']
+# data['close-open'] = data['close'] - data['open']
+# data['yes_close-mid'] = data['pre_close'] - data['middle']
+# data['mid-close'] = data['middle'] - data['close']
+# data.to_csv('test1.csv')
 # print(data)
+# print(data.loc[data['trade_date'] == '20220325'])
 # print(data2)
-
-print(workdays(datetime.strptime('20220301', '%Y%m%d'), datetime.strptime('20220331', '%Y%m%d')))
-print(tradedays(datetime.strptime('20220301', '%Y%m%d'), datetime.strptime('20220331', '%Y%m%d')))
+def run():
+    gol.set_value('')
+date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
