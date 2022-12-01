@@ -313,6 +313,7 @@ def check_middle(date):
     day4 = date_calculate(day3, 1)
     for day in [date,day2,day3,day4]:
         flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
+    print(date,flag)
     if flag[0] is True:
         middle_date.append(date)
         del(flag[0])
@@ -1153,3 +1154,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # clear()
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
+
+set_info('20220427', '20220609', '512690.SH')
+check_middle('20220516')
+print(middle_date)
