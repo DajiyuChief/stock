@@ -313,7 +313,7 @@ def check_middle(date):
     day4 = date_calculate(day3, 1)
     for day in [date,day2,day3,day4]:
         flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
-    print(date,flag)
+    print(date,flag,get_price(date,'close'),getBoll(date)[1])
     if flag[0] is True:
         middle_date.append(date)
         del(flag[0])
@@ -322,28 +322,33 @@ def check_middle(date):
                 nextday_index = i
                 break
         if nextday_index != -1:
+            # next_date是除了一次的穿中线的第二天
             next_date = date_calculate(date,nextday_index+1)
             if abs(RSI_vary(next_date) > variety_rsi):
-                middle_date.append(next_date)
                 variety_rsi = variety_rsi * 1.5
                 check_middle(next_date)
             else:
                 if get_price(next_date,'close') < getBoll(next_date)[1]:
-                    nextday_index = nextday_index + 1
-                    while nextday_index < 4:
-                        next_date = date_calculate(date, nextday_index)
-                        if get_price(next_date,'close') > getBoll(next_date)[1]:
+                    index = 1
+                    while index < 5:
+                        next_date2 = date_calculate(next_date, index)
+                        print(next_date2)
+                        # next_date2是不符合的第一天，往后看三天，第四天买卖出
+                        if get_price(next_date2,'close') > getBoll(next_date2)[1]:
                             break
-                        nextday_index = nextday_index + 1
-                    middle_date.append(next_date)
+                        index = index + 1
+                        if index == 5:
+                            middle_date.append(next_date2)
                 elif get_price(next_date,'close') > getBoll(next_date)[1]:
-                    nextday_index = nextday_index + 1
-                    while nextday_index < 4:
-                        next_date = date_calculate(date, nextday_index)
-                        if get_price(next_date,'close') < getBoll(next_date)[1]:
+                    index = 1
+                    while index < 5:
+                        next_date2 = date_calculate(next_date, index)
+                        print(next_date2)
+                        if get_price(next_date2,'close') < getBoll(next_date2)[1]:
                             break
-                        nextday_index = nextday_index + 1
-                    middle_date.append(next_date)
+                        index = index + 1
+                        if index == 5:
+                            middle_date.append(next_date2)
 
 
 
@@ -1155,6 +1160,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 
-set_info('20220427', '20220609', '512690.SH')
+set_info('20220220', '20220609', '512690.SH')
+print(global_data)
 check_middle('20220516')
 print(middle_date)
