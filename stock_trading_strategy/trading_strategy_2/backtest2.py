@@ -69,6 +69,8 @@ sell_signal = []
 #特殊条件变化率
 special_buy_rsi = 0.2
 special_sell_rsi = 0.1
+# 记录中线条件的交易日期
+middle_date = []
 
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
@@ -303,23 +305,45 @@ def check_middle(date):
     global variety_rsi
     global condition_flag
     global condition_step
+    global middle_date
     flag = []
-    mid_flag = -1
+    nextday_index = -1
     day2 = date_calculate(date, 1)
     day3 = date_calculate(day2, 1)
     day4 = date_calculate(day3, 1)
     for day in [date,day2,day3,day4]:
         flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
     if flag[0] is True:
-        condition_step = condition_step + 1
+        middle_date.append(date)
         del(flag[0])
         for i in range(0,3):
             if flag[i] is True:
-                mid_flag = i
+                nextday_index = i
                 break
-        if mid_flag != -1:
-            nex_date = date_calculate(date,mid_flag+1)
-            check_middle(nex_date)
+        if nextday_index != -1:
+            next_date = date_calculate(date,nextday_index+1)
+            if abs(RSI_vary(next_date) > variety_rsi):
+                middle_date.append(next_date)
+                variety_rsi = variety_rsi * 1.5
+                check_middle(next_date)
+            else:
+                if get_price(next_date,'close') < getBoll(next_date)[1]:
+                    nextday_index = nextday_index + 1
+                    while nextday_index < 4:
+                        next_date = date_calculate(date, nextday_index)
+                        if get_price(next_date,'close') > getBoll(next_date)[1]:
+                            break
+                        nextday_index = nextday_index + 1
+                    middle_date.append(next_date)
+                elif get_price(next_date,'close') > getBoll(next_date)[1]:
+                    nextday_index = nextday_index + 1
+                    while nextday_index < 4:
+                        next_date = date_calculate(date, nextday_index)
+                        if get_price(next_date,'close') < getBoll(next_date)[1]:
+                            break
+                        nextday_index = nextday_index + 1
+                    middle_date.append(next_date)
+
 
 
 
