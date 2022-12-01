@@ -298,6 +298,32 @@ def check_span_days(start, end, type):
             start = date_calculate(start, 1)
         return True
 
+# 检查中线条件
+def check_middle(date):
+    global variety_rsi
+    global condition_flag
+    global condition_step
+    flag = []
+    mid_flag = -1
+    day2 = date_calculate(date, 1)
+    day3 = date_calculate(day2, 1)
+    day4 = date_calculate(day3, 1)
+    for day in [date,day2,day3,day4]:
+        flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
+    if flag[0] is True:
+        condition_step = condition_step + 1
+        del(flag[0])
+        for i in range(0,3):
+            if flag[i] is True:
+                mid_flag = i
+                break
+        if mid_flag != -1:
+            nex_date = date_calculate(date,mid_flag+1)
+            check_middle(nex_date)
+
+
+
+
 
 # 买入条件：触及下沿线情况
 # percent为用户指定的比例
@@ -331,11 +357,8 @@ def buy_check_touch_middle(end):
     # 收盘为阳线，即收盘价高于开盘价
     flag2 = False
     midBoll = getBoll(end)[1]
-    high = global_data.loc[global_data['trade_date'] == end].high.values[0]
-    low = global_data.loc[global_data['trade_date'] == end].low.values[0]
     today_close = get_price(end, 'close')
     yes_close = get_price(date_calculate(end, -1), 'close')
-    # print(yes_close,midBoll,today_close)
     if yes_close < midBoll < today_close:
         flag1 = True
     if flag1:
@@ -343,7 +366,6 @@ def buy_check_touch_middle(end):
         close = global_data.loc[global_data['trade_date'] == end].close.values[0]
         if close > open:
             flag2 = True
-    # print('buy_check_touch_middle')
     return flag2
 
 
@@ -355,8 +377,8 @@ def buy_check_condition_three(end, rsi_flag=1):
     day3 = date_calculate(day2, 1)
     day4 = date_calculate(day3, 1)
     flag_day1 = buy_check_touch_middle(end)
-    flag_day2 = buy_check_touch_middle(day2)
-    flag_day3 = buy_check_touch_middle(day3)
+    flag_day2 = check_middle(day2)
+    flag_day3 = check_middle(day3)
 
     if condition_flag == 0:
         if flag_day1 and (flag_day2 or flag_day3) and compare_RSI(end, day2, day3, variety_rsi, rsi_flag):
