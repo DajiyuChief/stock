@@ -66,7 +66,7 @@ transaction_date = []
 # 买卖日期
 buy_signal = []
 sell_signal = []
-#特殊条件变化率
+# 特殊条件变化率
 special_buy_rsi = 0.2
 special_sell_rsi = 0.1
 # 记录中线条件的交易日期
@@ -84,7 +84,7 @@ def set_info(start, end, stock):
     global stock_code
     global global_data
     global transaction_date
-    global buy_signal,sell_signal
+    global buy_signal, sell_signal
     start_day = start
     end_day = end
     stock_code = stock
@@ -300,7 +300,11 @@ def check_span_days(start, end, type):
             start = date_calculate(start, 1)
         return True
 
+
 # 检查中线条件
+
+
+
 def check_middle(date):
     global variety_rsi
     global condition_flag
@@ -311,48 +315,44 @@ def check_middle(date):
     day2 = date_calculate(date, 1)
     day3 = date_calculate(day2, 1)
     day4 = date_calculate(day3, 1)
-    for day in [date,day2,day3,day4]:
+    for day in [date, day2, day3, day4]:
         flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
-    print(date,flag,get_price(date,'close'),getBoll(date)[1])
+    print(date, flag, get_price(date, 'close'), getBoll(date)[1])
     if flag[0] is True:
-        middle_date.append(date)
-        del(flag[0])
-        for i in range(0,3):
+        if condition_flag == 1:
+            middle_date.append(date)
+            condition_flag = condition_flag - 1
+        else:
+            if abs(RSI_vary(date)) > variety_rsi:
+                variety_rsi = variety_rsi * 1.5
+                middle_date.append(date)
+        del (flag[0])
+        for i in range(0, 3):
             if flag[i] is True:
                 nextday_index = i
                 break
         if nextday_index != -1:
             # next_date是除了一次的穿中线的第二天
-            next_date = date_calculate(date,nextday_index+1)
-            if abs(RSI_vary(next_date) > variety_rsi):
-                variety_rsi = variety_rsi * 1.5
-                check_middle(next_date)
-            else:
-                if get_price(next_date,'close') < getBoll(next_date)[1]:
-                    index = 1
-                    while index < 5:
-                        next_date2 = date_calculate(next_date, index)
-                        print(next_date2)
-                        # next_date2是不符合的第一天，往后看三天，第四天买卖出
-                        if get_price(next_date2,'close') > getBoll(next_date2)[1]:
-                            break
-                        index = index + 1
-                        if index == 5:
-                            middle_date.append(next_date2)
-                elif get_price(next_date,'close') > getBoll(next_date)[1]:
-                    index = 1
-                    while index < 5:
-                        next_date2 = date_calculate(next_date, index)
-                        print(next_date2)
-                        if get_price(next_date2,'close') < getBoll(next_date2)[1]:
-                            break
-                        index = index + 1
-                        if index == 5:
-                            middle_date.append(next_date2)
-
-
-
-
+            next_date = date_calculate(date, nextday_index + 1)
+            check_middle(next_date)
+            # if abs(RSI_vary(next_date)) > variety_rsi:
+            #     variety_rsi = variety_rsi * 1.5
+            #     middle_date.append(date)
+        else:
+            if get_price(date, 'close') < getBoll(date)[1]:
+                fourdays_later = date_calculate(date, 4)
+                print(fourdays_later)
+                # fourdays_later四天后，若收盘价仍低于中线，卖出，高于中线，买入
+                if get_price(fourdays_later, 'close') < getBoll(fourdays_later)[1]:
+                    middle_date.append(fourdays_later)
+            elif get_price(date, 'close') > getBoll(date)[1]:
+                fourdays_later = date_calculate(date, 4)
+                print(fourdays_later)
+                if get_price(fourdays_later, 'close') > getBoll(fourdays_later)[1]:
+                    middle_date.append(fourdays_later)
+            # 初始化条件
+            condition_flag = 1
+            variety_rsi = 0.1
 
 
 # 买入条件：触及下沿线情况
@@ -427,7 +427,6 @@ def buy_check_condition_three(end, rsi_flag=1):
         variety_rsi = 0.1
 
 
-
 # 单独列出做特殊处理
 def check_condition_three(stock_code, isCharge, date, price, isWhole, type):
     global condition_step
@@ -440,11 +439,11 @@ def check_condition_three(stock_code, isCharge, date, price, isWhole, type):
             if type == 'buy':
                 if type_flag == 1:
                     buy_signal.append(date)
-                    print('buy 中线',date)
+                    print('buy 中线', date)
                     type = 0
                 elif type_flag == 0:
                     sell_signal.append(date)
-                    print('sell buy中线条件',date)
+                    print('sell buy中线条件', date)
                     type_flag = 1
                 # 第一次成立从第二天开始
                 if flag == 1:
@@ -833,10 +832,10 @@ def transaction(stock_code, stoploss, isCharge, isWhole):
     # 去重
     buy_signal = np.unique(sorted(buy_signal))
     sell_signal = np.unique(sorted(sell_signal))
-    print('全部买点',buy_signal)
-    print('全部卖点',sell_signal)
+    print('全部买点', buy_signal)
+    print('全部卖点', sell_signal)
     trans_flag = 1
-    while len(buy_signal) != 0 :
+    while len(buy_signal) != 0:
         buy_date = buy_signal[0]
         buy_price = get_price(buy_date, 'close')
         if len(sell_signal) != 0:
@@ -850,7 +849,7 @@ def transaction(stock_code, stoploss, isCharge, isWhole):
                     sell_signal = np.delete(sell_signal, 0)
                 else:
                     sell_date = check_stop(buy_date, sell_date, stoploss)[1]
-                    print("stop",sell_date)
+                    print("stop", sell_date)
                     sell(stock_code, isCharge, sell_date, sell_price)
                 buy_signal = np.delete(buy_signal, 0)
                 trans_flag = 0
@@ -875,6 +874,7 @@ def transaction(stock_code, stoploss, isCharge, isWhole):
                 break
             else:
                 buy_signal = np.delete(buy_signal, 0)
+
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_whole(principal, stock_code, percent, stoploss, span, isCharge):
@@ -1053,7 +1053,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 span_days = buy_check_touch_low(percent, d)[1]
                 new_day = date_calculate(d, span_days)
                 price = get_price(new_day, 'close')
-                print('buy 触低线',new_day)
+                print('buy 触低线', new_day)
                 if not isWhole:
                     sell_check_condition_three(d)
                     if condition_step == 0:
@@ -1138,6 +1138,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     db = database_connection.MySQLDb()
     db.clean_table("TRUNCATE TABLE `backtest2`;")
     return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge, isWhole, transdate)
+
 
 # 调用示例：
 # backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
