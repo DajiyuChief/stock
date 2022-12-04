@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime
 
 import numpy as np
@@ -14,8 +15,13 @@ from chinese_calendar import is_workday
 from datetime import datetime, timedelta
 from chinese_calendar import is_holiday
 
+MyStruct = namedtuple("MyStruct", "date type")
+
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 
+class DateType:
+    def __init__(self, **data):
+        self.__dict__.update(data)
 
 def getBoll(df):
     # global history_data
@@ -145,6 +151,13 @@ def date_calculate2(date, days):
 # print(data)
 # print(data.loc[data['trade_date'] == '20220325'])
 # print(data2)
-def run():
-    gol.set_value('')
-date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
+# def run():
+#     gol.set_value('')
+# date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
+date1 = DateType(date = '2022' ,type = '1')
+m = MyStruct('20220202','1')
+print(m)
+print(m.date)
+print(m.type)
+# print(date1.date)
+# print(date1.type)
