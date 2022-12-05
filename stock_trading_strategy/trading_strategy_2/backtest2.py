@@ -14,6 +14,7 @@ from chinese_calendar import is_workday, is_holiday
 import database_connection
 
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
+
 # sys.path.append("../data_modules/database_connection.py")
 # 初始话全局变量
 gol._init()
@@ -79,9 +80,11 @@ middle_sell_list = []
 # 所有上穿，下穿中线时间
 all_middle_buy_list = []
 all_middle_sell_list = []
-
+# 记录中线条件其实日期
+middle_start_date = ''
 # 定义结构体储存数据
-MyStruct = namedtuple("MyStruct", "date type")
+# 分别是当前时间，优先级，类型（买卖），所属时间（穿中线用）
+MyStruct = namedtuple("MyStruct", "date priority type time")
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
 # 显示所有列
@@ -99,7 +102,7 @@ def set_info(start, end, stock):
     end_day = end
     stock_code = stock
     global_data = setdata(start, end, stock)
-    clear()
+    # clear()
     transaction_date = []
     buy_signal = sell_signal = []
 
@@ -326,7 +329,7 @@ def check_middle(date):
     global variety_rsi
     global condition_flag
     global condition_step
-    global middle_date, middle_buy_list, middle_sell_list
+    global middle_date, middle_buy_list, middle_sell_list, middle_start_date
     flag = []
     nextday_index = -1
     day2 = date_calculate(date, 1)
@@ -338,24 +341,25 @@ def check_middle(date):
     if flag[0] is True:
         # 第一次不看rsi变化率
         if condition_flag == 1:
+            middle_start_date = date
             if buy_check_touch_middle(date):
-                buy_signal.append(MyStruct(date,2))
-                middle_buy_list.append(MyStruct(date,2))
+                buy_signal.append(MyStruct(date,2,'buy',middle_start_date))
+                middle_buy_list.append(MyStruct(date,2,'buy',middle_start_date))
             else:
-                sell_signal.append(MyStruct(date,2))
-                middle_sell_list.append(MyStruct(date,2))
-            middle_date.append(MyStruct(date,2))
+                sell_signal.append(MyStruct(date,2,'sell',middle_start_date))
+                middle_sell_list.append(MyStruct(date,2,'sell',middle_start_date))
+            # middle_date.append(MyStruct(date,2))
             condition_flag = condition_flag - 1
         else:
             if abs(RSI_vary(date)) > variety_rsi:
                 variety_rsi = variety_rsi * 1.5
                 if buy_check_touch_middle(date):
-                    buy_signal.append(MyStruct(date, 2))
-                    middle_buy_list.append(MyStruct(date,2))
+                    buy_signal.append(MyStruct(date, 2,'buy',middle_start_date))
+                    middle_buy_list.append(MyStruct(date,2,'buy',middle_start_date))
                 else:
-                    sell_signal.append(MyStruct(date, 2))
-                    middle_sell_list.append(MyStruct(date,2))
-                middle_date.append(MyStruct(date,2))
+                    sell_signal.append(MyStruct(date, 2,'sell',middle_start_date))
+                    middle_sell_list.append(MyStruct(date,2,'sell',middle_start_date))
+                # middle_date.append(MyStruct(date,2))
         del (flag[0])
         for i in range(0, 3):
             if flag[i] is True:
@@ -371,16 +375,16 @@ def check_middle(date):
                 # print(fourdays_later)
                 # fourdays_later四天后，若收盘价仍低于中线，卖出，高于中线，买入
                 if get_price(fourdays_later, 'close') < getBoll(fourdays_later)[1]:
-                    sell_signal.append(MyStruct(fourdays_later,2))
-                    middle_sell_list.append(MyStruct(fourdays_later,2))
-                    middle_date.append(MyStruct(fourdays_later,2))
+                    sell_signal.append(MyStruct(fourdays_later,2,'sell',middle_start_date))
+                    middle_sell_list.append(MyStruct(fourdays_later,2,'sell',middle_start_date))
+                    # middle_date.append(MyStruct(fourdays_later,2))
             elif get_price(date, 'close') > getBoll(date)[1]:
                 fourdays_later = date_calculate(date, 4)
                 # print(fourdays_later)
                 if get_price(fourdays_later, 'close') > getBoll(fourdays_later)[1]:
-                    buy_signal.append(MyStruct(fourdays_later,2))
-                    middle_buy_list.append(MyStruct(fourdays_later,2))
-                    middle_date.append(MyStruct(fourdays_later,2))
+                    buy_signal.append(MyStruct(fourdays_later,2,'buy',middle_start_date))
+                    middle_buy_list.append(MyStruct(fourdays_later,2,'buy',middle_start_date))
+                    # middle_date.append(MyStruct(fourdays_later,2))
             # 初始化条件
             condition_flag = 1
             variety_rsi = 0.1
@@ -540,7 +544,7 @@ def buy_check_special(end):
                 # 股价下一次触及上沿线
                 if (high >= getBoll(date)[0]) & (span_days >= 3):
                     if (getRSI(date) <= 80) & (RSI_vary(date) > special_buy_rsi) & check_span_days(end, date, 'buy'):
-                        buy_signal.append(MyStruct(date,1))
+                        buy_signal.append(MyStruct(date,1,'buy',date))
                         print('buy 特1触高线', date)
                         flag2 = True
                     break
@@ -712,12 +716,12 @@ def sell_check_special(end):
                 if (low <= getBoll(date)[2]) & (span_days >= 3):
                     if check_span_days(end, date, 'sell'):
                         if (getRSI(date) >= 20) & (RSI_vary(date) < special_sell_rsi * -1):
-                            sell_signal.append(MyStruct(date,1))
+                            sell_signal.append(MyStruct(date,1,'sell',date))
                             print('sell 特2触低线', date)
                             flag2 = True
                             break
                         elif get_price(next_date, 'low') < getBoll(next_date)[2]:
-                            sell_signal.append(MyStruct(next_date,1))
+                            sell_signal.append(MyStruct(next_date,1,'sell',next_date))
                             break
     return flag2
 
@@ -730,11 +734,11 @@ def check_special(end):
     low = global_data.loc[global_data['trade_date'] == end].low.values[0]
     rsi = getRSI(end)
     if rsi > 80:
-        sell_signal.append(MyStruct(end,1))
+        sell_signal.append(MyStruct(end,1,'sell',end))
         print('sell rsi大于80', end)
         return -1
     if rsi < 20:
-        buy_signal.append(MyStruct(end,1))
+        buy_signal.append(MyStruct(end,1,'buy',end))
         print('buy rsi小于20', end)
         return 1
     if high >= highBoll and lowBoll >= low:
@@ -742,12 +746,12 @@ def check_special(end):
         close = global_data.loc[global_data['trade_date'] == end].close.values[0]
         # 阴线收盘
         if open > close:
-            sell_signal.append(MyStruct(end,1))
+            sell_signal.append(MyStruct(end,1,'sell',end))
             print('sell 阴线收盘', end)
             return -1
         # 阳线收盘
         if open < close:
-            buy_signal.append(MyStruct(end,1))
+            buy_signal.append(MyStruct(end,1,'buy',end))
             print('buy 阳线收盘', end)
             return 1
     # 特数情况rsi大于80或rsi小于20
@@ -1103,9 +1107,9 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 if not isWhole:
                     sell_check_condition_three(d)
                     if condition_step == 0:
-                        buy_signal.append(MyStruct(new_day,3))
+                        buy_signal.append(MyStruct(new_day,3,'buy',new_day))
                 else:
-                    buy_signal.append(MyStruct(new_day,3))
+                    buy_signal.append(MyStruct(new_day,3,'buy',new_day))
             # 哪个优先级高
             # 怎么将中线条件插入？
             check_middle(d)
@@ -1123,9 +1127,9 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 if not isWhole:
                     buy_check_condition_three(d)
                     if condition_step == 0:
-                        sell_signal.append(MyStruct(new_day,3))
+                        sell_signal.append(MyStruct(new_day,3,'sell',new_day))
                 else:
-                    sell_signal.append(MyStruct(new_day,3))
+                    sell_signal.append(MyStruct(new_day,3,'sell',new_day))
             check_middle(d)
             # if is_sell_condition_three(d):
             #     # print('sell3 中线', d)
@@ -1133,7 +1137,8 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         # 强制止损
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d, price)
-    transaction(stock_code, stoploss, isCharge, isWhole)
+    # transaction(stock_code, stoploss, isCharge, isWhole)
+    print(buy_signal,sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
@@ -1181,6 +1186,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     start_day = n_days_forward.strftime('%Y%m%d')
     end_day = day.strftime('%Y%m%d')
     # 往后推半个月 确保能取满周期
+    print(1)
     set_info(start_day, end_day, stock_code)
     transdate = used_date(startbak, endbak)
     print(start, end, span, day, delta, n_days_forward, start_day, end_day)
@@ -1210,6 +1216,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 
+# date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 set_info('20220220', '20220609', '512690.SH')
 list = check_middle('20220516')
 for item in middle_buy_list:
