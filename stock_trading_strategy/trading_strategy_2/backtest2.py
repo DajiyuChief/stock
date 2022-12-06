@@ -146,6 +146,7 @@ def clear():
     all_middle_buy_list = []
     all_middle_sell_list = []
 
+
 def setdata(start_day, end_day, stock_code):
     while True:
         try:
@@ -326,7 +327,6 @@ def check_span_days(start, end, type):
 # 检查中线条件
 
 
-
 def check_middle(date):
     global variety_rsi
     global condition_flag
@@ -345,22 +345,22 @@ def check_middle(date):
         if condition_flag == 1:
             middle_start_date = date
             if buy_check_touch_middle(date):
-                buy_signal.append(MyStruct(date,2,'buy',middle_start_date))
-                middle_buy_list.append(MyStruct(date,2,'buy',middle_start_date))
+                buy_signal.append(MyStruct(date, 2, 'buy', middle_start_date))
+                middle_buy_list.append(MyStruct(date, 2, 'buy', middle_start_date))
             else:
-                sell_signal.append(MyStruct(date,2,'sell',middle_start_date))
-                middle_sell_list.append(MyStruct(date,2,'sell',middle_start_date))
+                sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
+                middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
             # middle_date.append(MyStruct(date,2))
             condition_flag = condition_flag - 1
         else:
             if abs(RSI_vary(date)) > variety_rsi:
                 variety_rsi = variety_rsi * 1.5
                 if buy_check_touch_middle(date):
-                    buy_signal.append(MyStruct(date, 2,'buy',middle_start_date))
-                    middle_buy_list.append(MyStruct(date,2,'buy',middle_start_date))
+                    buy_signal.append(MyStruct(date, 2, 'buy', middle_start_date))
+                    middle_buy_list.append(MyStruct(date, 2, 'buy', middle_start_date))
                 else:
-                    sell_signal.append(MyStruct(date, 2,'sell',middle_start_date))
-                    middle_sell_list.append(MyStruct(date,2,'sell',middle_start_date))
+                    sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
+                    middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
                 # middle_date.append(MyStruct(date,2))
         del (flag[0])
         for i in range(0, 3):
@@ -377,20 +377,20 @@ def check_middle(date):
                 # print(fourdays_later)
                 # fourdays_later四天后，若收盘价仍低于中线，卖出，高于中线，买入
                 if get_price(fourdays_later, 'close') < getBoll(fourdays_later)[1]:
-                    sell_signal.append(MyStruct(fourdays_later,2,'sell',middle_start_date))
-                    middle_sell_list.append(MyStruct(fourdays_later,2,'sell',middle_start_date))
+                    sell_signal.append(MyStruct(fourdays_later, 2, 'sell', middle_start_date))
+                    middle_sell_list.append(MyStruct(fourdays_later, 2, 'sell', middle_start_date))
                     # middle_date.append(MyStruct(fourdays_later,2))
             elif get_price(date, 'close') > getBoll(date)[1]:
                 fourdays_later = date_calculate(date, 4)
                 # print(fourdays_later)
                 if get_price(fourdays_later, 'close') > getBoll(fourdays_later)[1]:
-                    buy_signal.append(MyStruct(fourdays_later,2,'buy',middle_start_date))
-                    middle_buy_list.append(MyStruct(fourdays_later,2,'buy',middle_start_date))
+                    buy_signal.append(MyStruct(fourdays_later, 2, 'buy', middle_start_date))
+                    middle_buy_list.append(MyStruct(fourdays_later, 2, 'buy', middle_start_date))
                     # middle_date.append(MyStruct(fourdays_later,2))
             # 初始化条件
             condition_flag = 1
             variety_rsi = 0.1
-        return middle_buy_list,middle_sell_list,middle_date
+        return middle_buy_list, middle_sell_list, middle_date
 
 
 # 中线时间插入到其他买卖时间中
@@ -546,7 +546,7 @@ def buy_check_special(end):
                 # 股价下一次触及上沿线
                 if (high >= getBoll(date)[0]) & (span_days >= 3):
                     if (getRSI(date) <= 80) & (RSI_vary(date) > special_buy_rsi) & check_span_days(end, date, 'buy'):
-                        buy_signal.append(MyStruct(date,1,'buy',date))
+                        buy_signal.append(MyStruct(date, 1, 'buy', date))
                         print('buy 特1触高线', date)
                         flag2 = True
                     break
@@ -569,13 +569,14 @@ def is_buy_condition_three(date):
     return False
 
 
-def buy(stock_code, isCharge, day, price, isWhole):
+def buy(stock_code, isCharge, day, isWhole):
     global num
     global cost
     global all
     global principal
     global transaction_signal
 
+    price = get_price(day, 'close')
     transaction_signal.append(1)
     # if (buy_check(percent, day)) & (principal > price * 100):
     cost = set_cost(day, principal, isWhole)
@@ -718,12 +719,12 @@ def sell_check_special(end):
                 if (low <= getBoll(date)[2]) & (span_days >= 3):
                     if check_span_days(end, date, 'sell'):
                         if (getRSI(date) >= 20) & (RSI_vary(date) < special_sell_rsi * -1):
-                            sell_signal.append(MyStruct(date,1,'sell',date))
+                            sell_signal.append(MyStruct(date, 1, 'sell', date))
                             print('sell 特2触低线', date)
                             flag2 = True
                             break
                         elif get_price(next_date, 'low') < getBoll(next_date)[2]:
-                            sell_signal.append(MyStruct(next_date,1,'sell',next_date))
+                            sell_signal.append(MyStruct(next_date, 1, 'sell', next_date))
                             break
     return flag2
 
@@ -736,11 +737,11 @@ def check_special(end):
     low = global_data.loc[global_data['trade_date'] == end].low.values[0]
     rsi = getRSI(end)
     if rsi > 80:
-        sell_signal.append(MyStruct(end,1,'sell',end))
+        sell_signal.append(MyStruct(end, 1, 'sell', end))
         print('sell rsi大于80', end)
         return -1
     if rsi < 20:
-        buy_signal.append(MyStruct(end,1,'buy',end))
+        buy_signal.append(MyStruct(end, 1, 'buy', end))
         print('buy rsi小于20', end)
         return 1
     if high >= highBoll and lowBoll >= low:
@@ -748,12 +749,12 @@ def check_special(end):
         close = global_data.loc[global_data['trade_date'] == end].close.values[0]
         # 阴线收盘
         if open > close:
-            sell_signal.append(MyStruct(end,1,'sell',end))
+            sell_signal.append(MyStruct(end, 1, 'sell', end))
             print('sell 阴线收盘', end)
             return -1
         # 阳线收盘
         if open < close:
-            buy_signal.append(MyStruct(end,1,'buy',end))
+            buy_signal.append(MyStruct(end, 1, 'buy', end))
             print('buy 阳线收盘', end)
             return 1
     # 特数情况rsi大于80或rsi小于20
@@ -794,13 +795,14 @@ def sell_check(percent, end):
     return False
 
 
-def sell(stock_code, isCharge, day, price):
+def sell(stock_code, isCharge, day):
     global num
     global cost
     global all
     global principal
     global transaction_signal
     # if sell_check(percent, day) and num > 0:
+    price = get_price(day, 'close')
     transaction_signal.append(-1)
     principal += num * price
     all = principal
@@ -826,7 +828,7 @@ def sell(stock_code, isCharge, day, price):
 
 
 # 止损
-def stop_loss(stock_code, isCharge, day, price):
+def stop_loss(stock_code, isCharge, day):
     global num
     global cost
     global all
@@ -834,6 +836,7 @@ def stop_loss(stock_code, isCharge, day, price):
     global begin
     global transaction_signal
 
+    price = get_price(day, 'close')
     transaction_signal.append(-1)
     print("强制止损")
     principal += num * price
@@ -1069,17 +1072,70 @@ def winning_percentage():
     return cnt * 0.05
 
 
-def new_trans():
+def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = buy_signal + sell_signal
     trans = sorted(trans, key=attrgetter("date"))
     # 记录当前交易类型
     trans_flag = 'buy'
+    # 上一次交易日期
+    last_trans_date = trans[0].date
     while len(trans) != 0:
         if trans_flag == 'buy':
             for item in trans:
-                if item.type == 'buy':
+                if item.type != 'buy':
+                    trans.pop(0)
+                if item.priority == 1:
+                    buy(stock_code,isCharge,item.date,isWhole)
+                    trans.pop(0)
+                    trans_flag = 'sell'
                     continue
-
+                if item.priority == 2:
+                    date_flag = item.time
+                    middle_flag = 'buy'
+                    while item.time == date_flag:
+                        if middle_flag == 'buy':
+                            buy(stock_code,isCharge,item.date,isWhole)
+                            trans.pop(0)
+                            middle_flag = 'sell'
+                        elif middle_flag == 'sell':
+                            sell(stock_code, isCharge, item.date)
+                            trans.pop(0)
+                            middle_flag = 'buy'
+                    trans_flag = middle_flag
+                    continue
+                if item.priority == 3:
+                    buy(stock_code,isCharge,item.date,isWhole)
+                    trans.pop(0)
+                    trans_flag = 'sell'
+                    continue
+        if trans_flag == 'sell':
+            for item in trans:
+                if item.type != 'sell':
+                    trans.pop(0)
+                if item.priority == 1:
+                    sell(stock_code,isCharge,item.date)
+                    trans.pop(0)
+                    trans_flag = 'buy'
+                    continue
+                if item.priority == 2:
+                    date_flag = item.time
+                    middle_flag = 'sell'
+                    while item.time == date_flag:
+                        if middle_flag == 'buy':
+                            buy(stock_code,isCharge,item.date,isWhole)
+                            trans.pop(0)
+                            middle_flag = 'sell'
+                        elif middle_flag == 'sell':
+                            sell(stock_code,isCharge,item.date)
+                            trans.pop(0)
+                            middle_flag = 'buy'
+                    trans_flag = middle_flag
+                    continue
+                if item.priority == 3:
+                    sell(stock_code,isCharge,item.date)
+                    trans.pop(0)
+                    trans_flag = 'buy'
+                    continue
 
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
@@ -1091,7 +1147,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     global all
     global principal
     global begin
-    global buy_signal, sell_signal,all_middle_buy_list, all_middle_sell_list
+    global buy_signal, sell_signal, all_middle_buy_list, all_middle_sell_list
     # 回测日期列表
     day = transdate
     # 仓位，单位是股数
@@ -1122,15 +1178,15 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 if not isWhole:
                     sell_check_condition_three(d)
                     if condition_step == 0:
-                        buy_signal.append(MyStruct(new_day,3,'buy',new_day))
+                        buy_signal.append(MyStruct(new_day, 3, 'buy', new_day))
                 else:
-                    buy_signal.append(MyStruct(new_day,3,'buy',new_day))
+                    buy_signal.append(MyStruct(new_day, 3, 'buy', new_day))
             # 哪个优先级高
             # 怎么将中线条件插入？
             # check_middle(d)
             # if is_buy_condition_three(d):
             #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'buy')
-                # print('buy3 中线', d)
+            # print('buy3 中线', d)
         # 确保有可卖出的股数
         if True:
             sell_check(percent, d)
@@ -1142,9 +1198,9 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 if not isWhole:
                     buy_check_condition_three(d)
                     if condition_step == 0:
-                        sell_signal.append(MyStruct(new_day,3,'sell',new_day))
+                        sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
                 else:
-                    sell_signal.append(MyStruct(new_day,3,'sell',new_day))
+                    sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
             check_middle(d)
             # if is_sell_condition_three(d):
             #     # print('sell3 中线', d)
@@ -1153,13 +1209,16 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d, price)
     # transaction(stock_code, stoploss, isCharge, isWhole)
-    print(buy_signal)
-    print(sell_signal)
+    # new_trans(stock_code, stoploss, isCharge, isWhole)
+    # print(buy_signal)
+    # print(sell_signal)
     trans = buy_signal + sell_signal
     trans = sorted(trans, key=attrgetter("date"))
     print(trans)
-    print('buy',buy_signal)
-    print('sell',sell_signal)
+    trans.pop(0)
+    print(trans)
+    # print('buy',buy_signal)
+    # print('sell',sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
