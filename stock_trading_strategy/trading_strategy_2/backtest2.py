@@ -1080,62 +1080,67 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     # 上一次交易日期
     last_trans_date = trans[0].date
     while len(trans) != 0:
+        item = trans[0]
         if trans_flag == 'buy':
-            for item in trans:
-                if item.type != 'buy':
-                    trans.pop(0)
-                if item.priority == 1:
-                    buy(stock_code,isCharge,item.date,isWhole)
-                    trans.pop(0)
-                    trans_flag = 'sell'
-                    continue
-                if item.priority == 2:
-                    date_flag = item.time
-                    middle_flag = 'buy'
-                    while item.time == date_flag:
-                        if middle_flag == 'buy':
-                            buy(stock_code,isCharge,item.date,isWhole)
-                            trans.pop(0)
-                            middle_flag = 'sell'
-                        elif middle_flag == 'sell':
-                            sell(stock_code, isCharge, item.date)
-                            trans.pop(0)
-                            middle_flag = 'buy'
-                    trans_flag = middle_flag
-                    continue
-                if item.priority == 3:
-                    buy(stock_code,isCharge,item.date,isWhole)
-                    trans.pop(0)
-                    trans_flag = 'sell'
-                    continue
+            # for item in trans:
+            if item.type != 'buy':
+                trans.pop(0)
+            if item.priority == 1:
+                buy(stock_code,isCharge,item.date,isWhole)
+                trans.pop(0)
+                trans_flag = 'sell'
+                continue
+            if item.priority == 2:
+                date_flag = item.time
+                middle_flag = 'buy'
+                while item.time == date_flag:
+                    if middle_flag == 'buy':
+                        buy(stock_code,isCharge,item.date,isWhole)
+                        trans.pop(0)
+                        item = trans[0]
+                        middle_flag = 'sell'
+                    elif middle_flag == 'sell':
+                        sell(stock_code, isCharge, item.date)
+                        trans.pop(0)
+                        item = trans[0]
+                        middle_flag = 'buy'
+                trans_flag = middle_flag
+                continue
+            if item.priority == 3:
+                buy(stock_code,isCharge,item.date,isWhole)
+                trans.pop(0)
+                trans_flag = 'sell'
+                continue
         if trans_flag == 'sell':
-            for item in trans:
-                if item.type != 'sell':
-                    trans.pop(0)
-                if item.priority == 1:
-                    sell(stock_code,isCharge,item.date)
-                    trans.pop(0)
-                    trans_flag = 'buy'
-                    continue
-                if item.priority == 2:
-                    date_flag = item.time
-                    middle_flag = 'sell'
-                    while item.time == date_flag:
-                        if middle_flag == 'buy':
-                            buy(stock_code,isCharge,item.date,isWhole)
-                            trans.pop(0)
-                            middle_flag = 'sell'
-                        elif middle_flag == 'sell':
-                            sell(stock_code,isCharge,item.date)
-                            trans.pop(0)
-                            middle_flag = 'buy'
-                    trans_flag = middle_flag
-                    continue
-                if item.priority == 3:
-                    sell(stock_code,isCharge,item.date)
-                    trans.pop(0)
-                    trans_flag = 'buy'
-                    continue
+            # for item in trans:
+            if item.type != 'sell':
+                trans.pop(0)
+            if item.priority == 1:
+                sell(stock_code,isCharge,item.date)
+                trans.pop(0)
+                trans_flag = 'buy'
+                continue
+            if item.priority == 2:
+                date_flag = item.time
+                middle_flag = 'sell'
+                while item.time == date_flag:
+                    if middle_flag == 'buy':
+                        buy(stock_code,isCharge,item.date,isWhole)
+                        trans.pop(0)
+                        item = trans[0]
+                        middle_flag = 'sell'
+                    elif middle_flag == 'sell':
+                        sell(stock_code,isCharge,item.date)
+                        trans.pop(0)
+                        item = trans[0]
+                        middle_flag = 'buy'
+                trans_flag = middle_flag
+                continue
+            if item.priority == 3:
+                sell(stock_code,isCharge,item.date)
+                trans.pop(0)
+                trans_flag = 'buy'
+                continue
 
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
@@ -1209,7 +1214,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d, price)
     # transaction(stock_code, stoploss, isCharge, isWhole)
-    # new_trans(stock_code, stoploss, isCharge, isWhole)
+    new_trans(stock_code, stoploss, isCharge, isWhole)
     # print(buy_signal)
     # print(sell_signal)
     trans = buy_signal + sell_signal
