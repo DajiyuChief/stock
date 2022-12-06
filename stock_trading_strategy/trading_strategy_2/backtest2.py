@@ -1,6 +1,7 @@
 import math
 import sys
 from collections import namedtuple
+from operator import attrgetter
 
 import gol
 import numpy as np
@@ -104,7 +105,8 @@ def set_info(start, end, stock):
     global_data = setdata(start, end, stock)
     # clear()
     transaction_date = []
-    buy_signal = sell_signal = []
+    buy_signal = []
+    sell_signal = []
 
     # boll线
     global_data['upper'], global_data['middle'], global_data['lower'] = ta.BBANDS(
@@ -1067,6 +1069,19 @@ def winning_percentage():
     return cnt * 0.05
 
 
+def new_trans():
+    trans = buy_signal + sell_signal
+    trans = sorted(trans, key=attrgetter("date"))
+    # 记录当前交易类型
+    trans_flag = 'buy'
+    while len(trans) != 0:
+        if trans_flag == 'buy':
+            for item in trans:
+                if item.type == 'buy':
+                    continue
+
+
+
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_position(principa, stock_code, percent, stoploss, span, isCharge, isWhole, transdate):
     global history_240
@@ -1112,7 +1127,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                     buy_signal.append(MyStruct(new_day,3,'buy',new_day))
             # 哪个优先级高
             # 怎么将中线条件插入？
-            check_middle(d)
+            # check_middle(d)
             # if is_buy_condition_three(d):
             #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'buy')
                 # print('buy3 中线', d)
@@ -1138,7 +1153,13 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d, price)
     # transaction(stock_code, stoploss, isCharge, isWhole)
-    print(buy_signal,sell_signal)
+    print(buy_signal)
+    print(sell_signal)
+    trans = buy_signal + sell_signal
+    trans = sorted(trans, key=attrgetter("date"))
+    print(trans)
+    print('buy',buy_signal)
+    print('sell',sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
@@ -1186,7 +1207,6 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     start_day = n_days_forward.strftime('%Y%m%d')
     end_day = day.strftime('%Y%m%d')
     # 往后推半个月 确保能取满周期
-    print(1)
     set_info(start_day, end_day, stock_code)
     transdate = used_date(startbak, endbak)
     print(start, end, span, day, delta, n_days_forward, start_day, end_day)
@@ -1216,12 +1236,12 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 
-# date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
-set_info('20220220', '20220609', '512690.SH')
-list = check_middle('20220516')
-for item in middle_buy_list:
-    print(item.date,item.type)
-print(middle_buy_list)
-print(middle_sell_list)
-print(middle_date)
-print(list)
+date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
+# set_info('20220220', '20220609', '512690.SH')
+# list = check_middle('20220516')
+# for item in middle_buy_list:
+#     print(item.date,item.type)
+# print(middle_buy_list)
+# print(middle_sell_list)
+# print(middle_date)
+# print(list)
