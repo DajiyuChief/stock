@@ -1074,6 +1074,7 @@ def winning_percentage():
 
 def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = buy_signal + sell_signal
+    # shanchu
     trans = sorted(trans, key=attrgetter("date"))
     # 记录当前交易类型
     trans_flag = 'buy'
@@ -1081,7 +1082,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     last_trans_date = trans[0].date
     while len(trans) != 0:
         item = trans[0]
-        if trans[0].date == trans[1].date:
+        if len(trans) > 1 and trans[0].date == trans[1].date:
             if trans[0].type != trans[1].type:
                 trans.pop(1)
         if trans_flag == 'buy':
@@ -1096,7 +1097,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             if item.priority == 2:
                 date_flag = item.time
                 middle_flag = 'buy'
-                while item.time == date_flag:
+                while item.time == date_flag and len(trans) != 0:
                     if middle_flag == 'buy':
                         buy(stock_code,isCharge,item.date,isWhole)
                         trans.pop(0)
@@ -1126,7 +1127,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             if item.priority == 2:
                 date_flag = item.time
                 middle_flag = 'sell'
-                while item.time == date_flag:
+                while item.time == date_flag and len(trans) != 0:
                     if middle_flag == 'buy':
                         buy(stock_code,isCharge,item.date,isWhole)
                         trans.pop(0)
