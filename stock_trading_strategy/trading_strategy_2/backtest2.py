@@ -1081,6 +1081,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     last_trans_date = trans[0].date
     while len(trans) != 0:
         item = trans[0]
+        if trans[0].date == trans[1].date:
+            if trans[0].type != trans[1].type:
+                trans.pop(1)
         if trans_flag == 'buy':
             # for item in trans:
             if item.type != 'buy':
