@@ -1071,6 +1071,13 @@ def winning_percentage():
     # 每满足一项条件胜率就增5%
     return cnt * 0.05
 
+# 删除中线条件未成立的部分
+def middle_remove(trans):
+    date = trans[0].date
+    remove_trans = check_middle(date)[0] + check_middle(date)[1]
+    new = [item for item in trans if item not in remove_trans]
+    print('remove',remove_trans)
+    return new
 
 def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = buy_signal + sell_signal
@@ -1080,35 +1087,51 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans_flag = 'buy'
     # 上一次交易日期
     last_trans_date = trans[0].date
+    # 已经交易过的中线日期
+    already_trans_middle_date = []
     while len(trans) != 0:
         item = trans[0]
         if len(trans) > 1 and trans[0].date == trans[1].date:
             if trans[0].type != trans[1].type:
                 trans.pop(1)
+        if last_trans_date == trans[0].date:
+            trans.pop(0)
         if trans_flag == 'buy':
             # for item in trans:
             if item.type != 'buy':
+
                 trans.pop(0)
+                continue
             if item.priority == 1:
                 buy(stock_code,isCharge,item.date,isWhole)
                 trans.pop(0)
                 trans_flag = 'sell'
                 continue
             if item.priority == 2:
+                if item.time in already_trans_middle_date:
+                    trans.pop(0)
+                    print(trans)
+                    print(already_trans_middle_date)
+                    continue
                 date_flag = item.time
                 middle_flag = 'buy'
                 while item.time == date_flag and len(trans) != 0:
                     if middle_flag == 'buy':
                         buy(stock_code,isCharge,item.date,isWhole)
+                        last_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
                         middle_flag = 'sell'
+                        already_trans_middle_date.append(date_flag)
                     elif middle_flag == 'sell':
                         sell(stock_code, isCharge, item.date)
+                        ast_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
                         middle_flag = 'buy'
+                        already_trans_middle_date.append(date_flag)
                 trans_flag = middle_flag
+
                 continue
             if item.priority == 3:
                 buy(stock_code,isCharge,item.date,isWhole)
@@ -1118,27 +1141,37 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
         if trans_flag == 'sell':
             # for item in trans:
             if item.type != 'sell':
+
                 trans.pop(0)
+                continue
             if item.priority == 1:
                 sell(stock_code,isCharge,item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
                 continue
             if item.priority == 2:
+                if item.time in already_trans_middle_date:
+                    trans.pop(0)
+                    continue
                 date_flag = item.time
                 middle_flag = 'sell'
                 while item.time == date_flag and len(trans) != 0:
                     if middle_flag == 'buy':
                         buy(stock_code,isCharge,item.date,isWhole)
+                        ast_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
                         middle_flag = 'sell'
+                        already_trans_middle_date.append(date_flag)
                     elif middle_flag == 'sell':
                         sell(stock_code,isCharge,item.date)
+                        ast_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
                         middle_flag = 'buy'
+                        already_trans_middle_date.append(date_flag)
                 trans_flag = middle_flag
+                already_trans_middle_date.append(date_flag)
                 continue
             if item.priority == 3:
                 sell(stock_code,isCharge,item.date)
@@ -1224,10 +1257,10 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     trans = buy_signal + sell_signal
     trans = sorted(trans, key=attrgetter("date"))
     print(trans)
-    trans.pop(0)
-    print(trans)
-    # print('buy',buy_signal)
-    # print('sell',sell_signal)
+    # trans.pop(0)
+    # print(trans)
+    # # print('buy',buy_signal)
+    # # print('sell',sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
