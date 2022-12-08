@@ -1105,7 +1105,8 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'sell'
                 continue
             if item.priority == 2:
-                if item.time in already_trans_middle_date:
+                if item.date != item.time:
+                # if item.time in already_trans_middle_date:
                     trans.pop(0)
                     continue
                 date_flag = item.time
@@ -1151,7 +1152,8 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'buy'
                 continue
             if item.priority == 2:
-                if item.time in already_trans_middle_date:
+                if item.date != item.time:
+                # if item.time in already_trans_middle_date:
                     trans.pop(0)
                     continue
                 date_flag = item.time
@@ -1268,7 +1270,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                         sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
                 else:
                     sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
-            # check_middle(d)
+            check_middle(d)
             # if is_sell_condition_three(d):
             #     # print('sell3 中线', d)
             #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'sell')
@@ -1276,7 +1278,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d)
     # transaction(stock_code, stoploss, isCharge, isWhole)
-    # new_trans(stock_code, stoploss, isCharge, isWhole)
+    new_trans(stock_code, stoploss, isCharge, isWhole)
     # print(buy_signal)
     # print(sell_signal)
     trans = buy_signal + sell_signal
