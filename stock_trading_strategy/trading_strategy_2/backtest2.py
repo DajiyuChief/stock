@@ -70,6 +70,9 @@ transaction_date = []
 # 买卖日期
 buy_signal = []
 sell_signal = []
+# 记录中线条件不交易的日期
+not_buy_date = []
+not_sell_date = []
 # 特殊条件变化率
 special_buy_rsi = 0.2
 special_sell_rsi = 0.1
@@ -129,8 +132,7 @@ def set_info(start, end, stock):
 
 
 def clear():
-    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list
-    transaction_date = []
+    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list,not_buy_date,not_sell_date
     buy_signal = []
     sell_signal = []
     transaction_signal = []
@@ -141,6 +143,8 @@ def clear():
     # 所有上穿，下穿中线时间
     all_middle_buy_list = []
     all_middle_sell_list = []
+    not_buy_date = []
+    not_sell_date = []
 
 
 def setdata(start_day, end_day, stock_code):
@@ -358,6 +362,11 @@ def check_middle(date):
                     sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
                     middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
                 # middle_date.append(MyStruct(date,2))
+            else:
+                if buy_check_touch_middle(date):
+                    not_buy_date.append(date)
+                else:
+                    not_sell_date.append(date)
         del (flag[0])
         for i in range(0, 3):
             if flag[i] is True:
@@ -1105,10 +1114,11 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'sell'
                 continue
             if item.priority == 2:
-                if item.date != item.time:
+                # if item.date != item.time or item.date in not_buy_date:
                 # if item.time in already_trans_middle_date:
-                    trans.pop(0)
-                    continue
+                # if item.date in not_buy_date:
+                #     trans.pop(0)
+                #     continue
                 date_flag = item.time
                 middle_flag = 'buy'
                 while item.time == date_flag and len(trans) != 0:
@@ -1152,10 +1162,11 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'buy'
                 continue
             if item.priority == 2:
-                if item.date != item.time:
+                # if item.date != item.time or item.date in not_sell_date:
                 # if item.time in already_trans_middle_date:
-                    trans.pop(0)
-                    continue
+                # if item.date in not_sell_date:
+                #     trans.pop(0)
+                #     continue
                 date_flag = item.time
                 middle_flag = 'sell'
                 while item.time == date_flag and len(trans) != 0:
@@ -1284,7 +1295,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     trans = buy_signal + sell_signal
     trans = sorted(trans, key=attrgetter("date"))
     print(trans)
-    print(middle_insert())
+    # print(middle_insert())
     # trans.pop(0)
     # print(trans)
     print('buy',buy_signal)
@@ -1359,7 +1370,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220408', '20220613', '601069.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220310', '20220609', '516950.SH', 9999999, 0.1, 0.3, False, True)
-date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
+# date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
@@ -1370,6 +1381,7 @@ date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, Tr
 
 # date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 
+date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
 
 # set_info('20220220', '20220609', '512690.SH')
 # check_middle('20220516')
@@ -1377,3 +1389,5 @@ date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, Tr
 #     print(item.date,item.type)
 # print(middle_buy_list)
 # print(middle_sell_list)
+# print(not_buy_date)
+# print(not_sell_date)
