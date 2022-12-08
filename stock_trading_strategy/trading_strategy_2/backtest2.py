@@ -41,9 +41,9 @@ history_condition = pd.DataFrame
 # 记录条件三检测日期
 condition_date = date
 # 开始日期
-start_day = ''
+gol_start = ''
 # 结束日期
-end_day = ''
+gol_end = ''
 # 股票代码
 stock_code = ''
 # 条件三条件标志
@@ -93,20 +93,16 @@ pd.set_option('display.max_columns', 1000)
 
 
 def set_info(start, end, stock):
-    global start_day
-    global end_day
     global stock_code
     global global_data
     global transaction_date
     global buy_signal, sell_signal
-    start_day = start
-    end_day = end
     stock_code = stock
     global_data = setdata(start, end, stock)
-    # clear()
-    transaction_date = []
-    buy_signal = []
-    sell_signal = []
+    clear()
+    # transaction_date = []
+    # buy_signal = []
+    # sell_signal = []
 
     # boll线
     global_data['upper'], global_data['middle'], global_data['lower'] = ta.BBANDS(
@@ -279,7 +275,7 @@ def get_timestamp(date):
 
 
 # 改写getBoll()
-def getBoll(date=end_day):
+def getBoll(date):
     global global_data
     high = global_data.loc[global_data['trade_date'] == date].upper.values[0]
     middle = global_data.loc[global_data['trade_date'] == date].middle.values[0]
@@ -288,7 +284,7 @@ def getBoll(date=end_day):
 
 
 # 改写getRSI()
-def getRSI(date=end_day):
+def getRSI(date):
     global global_data
     # # 6日rsi
     rsi = global_data.loc[global_data['trade_date'] == date].rsi.values[0]
@@ -1072,12 +1068,7 @@ def winning_percentage():
     return cnt * 0.05
 
 # 删除中线条件未成立的部分
-def middle_remove(trans):
-    date = trans[0].date
-    remove_trans = check_middle(date)[0] + check_middle(date)[1]
-    new = [item for item in trans if item not in remove_trans]
-    print('remove',remove_trans)
-    return new
+
 
 def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = buy_signal + sell_signal
@@ -1099,8 +1090,14 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
         if trans_flag == 'buy':
             # for item in trans:
             if item.type != 'buy':
-
-                trans.pop(0)
+                if item.priority == 2 and item.date == item.time:
+                    new = []
+                    for i in trans:
+                        if not (i.priority == 2 and i.time == item.time):
+                            new.append(i)
+                    trans = new
+                else:
+                    trans.pop(0)
                 continue
             if item.priority == 1:
                 buy(stock_code,isCharge,item.date,isWhole)
@@ -1110,8 +1107,6 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             if item.priority == 2:
                 if item.time in already_trans_middle_date:
                     trans.pop(0)
-                    print(trans)
-                    print(already_trans_middle_date)
                     continue
                 date_flag = item.time
                 middle_flag = 'buy'
@@ -1141,8 +1136,14 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
         if trans_flag == 'sell':
             # for item in trans:
             if item.type != 'sell':
-
-                trans.pop(0)
+                if item.priority == 2 and item.date == item.time:
+                    new = []
+                    for i in trans:
+                        if not (i.priority == 2 and i.time == item.time):
+                            new.append(i)
+                    trans = new
+                else:
+                    trans.pop(0)
                 continue
             if item.priority == 1:
                 sell(stock_code,isCharge,item.date)
@@ -1179,6 +1180,30 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'buy'
                 continue
 
+# 中线条件插入
+def middle_insert():
+    trans = buy_signal + sell_signal
+    trans = sorted(trans, key=attrgetter("date"))
+    trans_flag = 'buy'
+    trans_date_except_middle = []
+    trans_date_except_middle.append(gol_start)
+    trans_date_except_middle.append(gol_end)
+    while len(trans) != 0:
+        for item in trans:
+            if trans_flag == 'buy':
+                if item.type != 'buy':
+                    trans.pop(0)
+                else:
+                    trans_date_except_middle.append(item.date)
+                    trans_flag = 'sell'
+            if trans_flag == 'sell':
+                if item.type != 'sell':
+                    trans.pop(0)
+                else:
+                    trans_date_except_middle.append(item.date)
+                    trans_flag = 'buy'
+
+    return sorted(trans_date_except_middle)
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_position(principa, stock_code, percent, stoploss, span, isCharge, isWhole, transdate):
@@ -1243,24 +1268,25 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                         sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
                 else:
                     sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
-            check_middle(d)
+            # check_middle(d)
             # if is_sell_condition_three(d):
             #     # print('sell3 中线', d)
             #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'sell')
         # 强制止损
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
-            stop_loss(stock_code, isCharge, d, price)
+            stop_loss(stock_code, isCharge, d)
     # transaction(stock_code, stoploss, isCharge, isWhole)
-    new_trans(stock_code, stoploss, isCharge, isWhole)
+    # new_trans(stock_code, stoploss, isCharge, isWhole)
     # print(buy_signal)
     # print(sell_signal)
     trans = buy_signal + sell_signal
     trans = sorted(trans, key=attrgetter("date"))
     print(trans)
+    print(middle_insert())
     # trans.pop(0)
     # print(trans)
-    # # print('buy',buy_signal)
-    # # print('sell',sell_signal)
+    print('buy',buy_signal)
+    print('sell',sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
@@ -1295,6 +1321,7 @@ def backtest2(span, stock_code, principal, percent, stoploss, isCharge, isWhole)
 
 
 def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss, isCharge, isWhole):
+    global gol_start,gol_end
     start = datetime(int(start_day[0:4]), int(start_day[4:6]), int(start_day[6:8]))
     end = datetime(int(end_day[0:4]), int(end_day[4:6]), int(end_day[6:8]))
     startbak = start_day
@@ -1310,6 +1337,8 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     # 往后推半个月 确保能取满周期
     set_info(start_day, end_day, stock_code)
     transdate = used_date(startbak, endbak)
+    gol_start = startbak
+    gol_end = endbak
     print(start, end, span, day, delta, n_days_forward, start_day, end_day)
     db = database_connection.MySQLDb()
     db.clean_table("TRUNCATE TABLE `backtest2`;")
@@ -1328,7 +1357,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220408', '20220613', '601069.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220310', '20220609', '516950.SH', 9999999, 0.1, 0.3, False, True)
-# date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
+date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
@@ -1337,12 +1366,12 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 
-date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
+# date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
+
+
 # set_info('20220220', '20220609', '512690.SH')
-# list = check_middle('20220516')
+# check_middle('20220516')
 # for item in middle_buy_list:
 #     print(item.date,item.type)
 # print(middle_buy_list)
 # print(middle_sell_list)
-# print(middle_date)
-# print(list)
