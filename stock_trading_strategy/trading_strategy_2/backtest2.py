@@ -86,6 +86,10 @@ all_middle_buy_list = []
 all_middle_sell_list = []
 # 记录中线条件其实日期
 middle_start_date = ''
+# 中线是否可执行标志位
+can_middle_flag = 1
+# 记录当前中线条件的所属日期
+middle_time = ''
 # 定义结构体储存数据
 # 分别是当前时间，优先级，类型（买卖），所属时间（穿中线用）
 MyStruct = namedtuple("MyStruct", "date priority type time")
@@ -1078,12 +1082,20 @@ def winning_percentage():
     return cnt * 0.05
 
 
-# 删除中线条件未成立的部分
+# 获取对应中线条件日期长度
+def get_middle_len(date):
+    tran = []
+    for item in middle_date:
+        if item.time == date and item.priority == 2:
+            tran.append(item)
+    return len(tran)
 
 
 def new_trans(stock_code, stoploss, isCharge, isWhole):
+    global can_middle_flag, condition_step, middle_time
     trans = buy_signal + sell_signal
     # shanchu
+    trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
     # 记录当前交易类型
     trans_flag = 'buy'
@@ -1096,124 +1108,147 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
         if len(trans) > 1 and trans[0].date == trans[1].date:
             if trans[0].type != trans[1].type:
                 trans.pop(1)
-        if last_trans_date == trans[0].date:
-            trans.pop(0)
+        # if last_trans_date == trans[0].date:
+        #     trans.pop(0)
         if trans_flag == 'buy':
             # for item in trans:
             if item.type != 'buy':
-                if item.priority == 2 and item.date == item.time:
-                    new = []
-                    for i in trans:
-                        if not (i.priority == 2 and i.time == item.time):
-                            new.append(i)
-                    trans = new
-                else:
-                    trans.pop(0)
+                trans.pop(0)
+                # if item.priority == 2 and item.date == item.time:
+                #     new = []
+                #     for i in trans:
+                #         if not (i.priority == 2 and i.time == item.time):
+                #             new.append(i)
+                #     trans = new
+                # else:
+                #     trans.pop(0)
                 continue
             if item.priority == 1:
                 buy(stock_code, isCharge, item.date, isWhole)
                 trans.pop(0)
                 trans_flag = 'sell'
-                continue
-            if item.priority == 2:
-                # if item.date != item.time or item.date in not_buy_date:
-                # if item.time in already_trans_middle_date:
-                # if item.date in not_buy_date:
-                #     trans.pop(0)
-                #     continue
-
-                # 记录中线条件日期
-                compared_middle_date = check_middle(item.date)[2]
-                date_flag = item.time
-                middle_flag = 'buy'
-                while item.time == date_flag and len(trans) != 0:
-                    if item != compared_middle_date[0]:
-                        if item.priority == 2:
-                            trans.pop(0)
-                            print(trans)
-                        else:
-                            break
-                    else:
-                        compared_middle_date.pop(0)
-                    if middle_flag == 'buy':
-                        buy(stock_code, isCharge, item.date, isWhole)
-                        last_trans_date = item.date
-                        trans.pop(0)
-                        item = trans[0]
-                        middle_flag = 'sell'
-                        already_trans_middle_date.append(date_flag)
-                    elif middle_flag == 'sell':
-                        sell(stock_code, isCharge, item.date)
-                        ast_trans_date = item.date
-                        trans.pop(0)
-                        item = trans[0]
-                        middle_flag = 'buy'
-                        already_trans_middle_date.append(date_flag)
-                trans_flag = middle_flag
-
-                continue
-            if item.priority == 3:
+                condition_step = 0
+            elif item.priority == 2:
+                # # 只有一次中线执行完或者被其他条件中断后才执行下一个中线条件
+                # can_middle_flag = 0
+                # # 记录中线条件日期
+                # compared_middle_date = check_middle(item.date)[2]
+                # date_flag = item.time
+                # middle_flag = 'buy'
+                # while item.time == date_flag and len(trans) != 0:
+                #     if item != compared_middle_date[0]:
+                #         if item.priority == 2:
+                #             trans.pop(0)
+                #         else:
+                #             can_middle_flag = 1
+                #             break
+                #     else:
+                #         compared_middle_date.pop(0)
+                #         if len(compared_middle_date) == 0:
+                #             can_middle_flag = 1
+                #     if middle_flag == 'buy':
+                #         buy(stock_code, isCharge, item.date, isWhole)
+                #         last_trans_date = item.date
+                #         trans.pop(0)
+                #         item = trans[0]
+                #         middle_flag = 'sell'
+                #         already_trans_middle_date.append(date_flag)
+                #     elif middle_flag == 'sell':
+                #         sell(stock_code, isCharge, item.date)
+                #         trans.pop(0)
+                #         item = trans[0]
+                #         middle_flag = 'buy'
+                #         already_trans_middle_date.append(date_flag)
+                # trans_flag = middle_flag
+                if condition_step == 0 and item.time == item.date:
+                    middle_time = item.time
+                    buy(stock_code, isCharge, item.date, isWhole)
+                    trans.pop(0)
+                    trans_flag = 'sell'
+                    condition_step = condition_step + 1
+                elif item.time != middle_time:
+                    trans.pop(0)
+                elif condition_step <= get_middle_len(middle_time):
+                    buy(stock_code, isCharge, item.date, isWhole)
+                    trans.pop(0)
+                    trans_flag = 'sell'
+                    condition_step = condition_step + 1
+                if condition_step == get_middle_len(middle_time):
+                    condition_step = 0
+            elif item.priority == 3:
                 buy(stock_code, isCharge, item.date, isWhole)
                 trans.pop(0)
                 trans_flag = 'sell'
-                continue
-        if trans_flag == 'sell':
+                condition_step = 0
+        elif trans_flag == 'sell':
             # for item in trans:
             if item.type != 'sell':
-                if item.priority == 2 and item.date == item.time:
-                    new = []
-                    for i in trans:
-                        if not (i.priority == 2 and i.time == item.time):
-                            new.append(i)
-                    trans = new
-                else:
-                    trans.pop(0)
+                trans.pop(0)
+                # if item.priority == 2 and item.date == item.time:
+                #     new = []
+                #     for i in trans:
+                #         if not (i.priority == 2 and i.time == item.time):
+                #             new.append(i)
+                #     trans = new
+                # else:
+                #     trans.pop(0)
                 continue
             if item.priority == 1:
                 sell(stock_code, isCharge, item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
-                continue
-            if item.priority == 2:
-                # if item.date != item.time or item.date in not_sell_date:
-                # if item.time in already_trans_middle_date:
-                # if item.date in not_sell_date:
-                #     trans.pop(0)
-                #     continue
-                # 记录中线条件日期
-                compared_middle_date = check_middle(item.date)[2]
-                date_flag = item.time
-                middle_flag = 'sell'
-                while item.time == date_flag and len(trans) != 0:
-                    if item != compared_middle_date[0]:
-                        if item.priority == 2:
-                            trans.pop(0)
-                        else:
-                            break
-                    else:
-                        compared_middle_date.pop(0)
-                    if middle_flag == 'buy':
-                        buy(stock_code, isCharge, item.date, isWhole)
-                        ast_trans_date = item.date
-                        trans.pop(0)
-                        item = trans[0]
-                        middle_flag = 'sell'
-                        already_trans_middle_date.append(date_flag)
-                    elif middle_flag == 'sell':
-                        sell(stock_code, isCharge, item.date)
-                        ast_trans_date = item.date
-                        trans.pop(0)
-                        item = trans[0]
-                        middle_flag = 'buy'
-                        already_trans_middle_date.append(date_flag)
-                trans_flag = middle_flag
-                already_trans_middle_date.append(date_flag)
-                continue
-            if item.priority == 3:
+                condition_step = 0
+            elif item.priority == 2:
+                # can_middle_flag = 0
+                # # 记录中线条件日期
+                # compared_middle_date = check_middle(item.date)[2]
+                # date_flag = item.time
+                # middle_flag = 'sell'
+                # while item.time == date_flag and len(trans) != 0:
+                #     if item != compared_middle_date[0]:
+                #         if item.priority == 2:
+                #             trans.pop(0)
+                #         else:
+                #             can_middle_flag = 1
+                #             break
+                #     else:
+                #         compared_middle_date.pop(0)
+                #         if len(compared_middle_date) == 0:
+                #             can_middle_flag = 1
+                #     if middle_flag == 'buy':
+                #         buy(stock_code, isCharge, item.date, isWhole)
+                #         trans.pop(0)
+                #         item = trans[0]
+                #         middle_flag = 'sell'
+                #         already_trans_middle_date.append(date_flag)
+                #     elif middle_flag == 'sell':
+                #         sell(stock_code, isCharge, item.date)
+                #         trans.pop(0)
+                #         item = trans[0]
+                #         middle_flag = 'buy'
+                #         already_trans_middle_date.append(date_flag)
+                # trans_flag = middle_flag
+                # already_trans_middle_date.append(date_flag)
+                if condition_step == 0 and item.time == item.date:
+                    middle_time = item.time
+                    sell(stock_code, isCharge, item.date)
+                    trans.pop(0)
+                    trans_flag = 'buy'
+                    condition_step = condition_step + 1
+                elif item.time != middle_time:
+                    trans.pop(0)
+                elif condition_step < get_middle_len(middle_time):
+                    sell(stock_code, isCharge, item.date)
+                    trans.pop(0)
+                    trans_flag = 'buy'
+                    condition_step = condition_step + 1
+                if condition_step == get_middle_len(middle_time):
+                    condition_step = 0
+            elif item.priority == 3:
                 sell(stock_code, isCharge, item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
-                continue
+                condition_step = 0
 
 
 # 中线条件插入
@@ -1317,6 +1352,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     # print(buy_signal)
     # print(sell_signal)
     trans = buy_signal + sell_signal
+    trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
     print(trans)
     # print(middle_insert())
