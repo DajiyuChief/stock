@@ -1130,9 +1130,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     if item != compared_middle_date[0]:
                         if item.priority == 2:
                             trans.pop(0)
+                            print(trans)
                         else:
-                            continue
-                        compared_middle_date.pop(0)
+                            break
                     else:
                         compared_middle_date.pop(0)
                     if middle_flag == 'buy':
@@ -1189,8 +1189,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                         if item.priority == 2:
                             trans.pop(0)
                         else:
-                            continue
-                        compared_middle_date.pop(0)
+                            break
                     else:
                         compared_middle_date.pop(0)
                     if middle_flag == 'buy':
