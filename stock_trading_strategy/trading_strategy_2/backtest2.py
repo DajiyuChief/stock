@@ -132,7 +132,7 @@ def set_info(start, end, stock):
 
 
 def clear():
-    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list,not_buy_date,not_sell_date
+    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list, not_buy_date, not_sell_date
     buy_signal = []
     sell_signal = []
     transaction_signal = []
@@ -395,6 +395,7 @@ def check_middle(date):
             # 初始化条件
             condition_flag = 1
             variety_rsi = 0.1
+            middle_date = sorted(middle_buy_list + middle_sell_list, key=attrgetter("date"))
         return middle_buy_list, middle_sell_list, middle_date
 
 
@@ -1076,6 +1077,7 @@ def winning_percentage():
     # 每满足一项条件胜率就增5%
     return cnt * 0.05
 
+
 # 删除中线条件未成立的部分
 
 
@@ -1109,7 +1111,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     trans.pop(0)
                 continue
             if item.priority == 1:
-                buy(stock_code,isCharge,item.date,isWhole)
+                buy(stock_code, isCharge, item.date, isWhole)
                 trans.pop(0)
                 trans_flag = 'sell'
                 continue
@@ -1119,11 +1121,22 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 # if item.date in not_buy_date:
                 #     trans.pop(0)
                 #     continue
+
+                # 记录中线条件日期
+                compared_middle_date = check_middle(item.date)[2]
                 date_flag = item.time
                 middle_flag = 'buy'
                 while item.time == date_flag and len(trans) != 0:
+                    if item != compared_middle_date[0]:
+                        if item.priority == 2:
+                            trans.pop(0)
+                        else:
+                            continue
+                        compared_middle_date.pop(0)
+                    else:
+                        compared_middle_date.pop(0)
                     if middle_flag == 'buy':
-                        buy(stock_code,isCharge,item.date,isWhole)
+                        buy(stock_code, isCharge, item.date, isWhole)
                         last_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
@@ -1140,7 +1153,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
 
                 continue
             if item.priority == 3:
-                buy(stock_code,isCharge,item.date,isWhole)
+                buy(stock_code, isCharge, item.date, isWhole)
                 trans.pop(0)
                 trans_flag = 'sell'
                 continue
@@ -1157,7 +1170,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     trans.pop(0)
                 continue
             if item.priority == 1:
-                sell(stock_code,isCharge,item.date)
+                sell(stock_code, isCharge, item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
                 continue
@@ -1167,18 +1180,28 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 # if item.date in not_sell_date:
                 #     trans.pop(0)
                 #     continue
+                # 记录中线条件日期
+                compared_middle_date = check_middle(item.date)[2]
                 date_flag = item.time
                 middle_flag = 'sell'
                 while item.time == date_flag and len(trans) != 0:
+                    if item != compared_middle_date[0]:
+                        if item.priority == 2:
+                            trans.pop(0)
+                        else:
+                            continue
+                        compared_middle_date.pop(0)
+                    else:
+                        compared_middle_date.pop(0)
                     if middle_flag == 'buy':
-                        buy(stock_code,isCharge,item.date,isWhole)
+                        buy(stock_code, isCharge, item.date, isWhole)
                         ast_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
                         middle_flag = 'sell'
                         already_trans_middle_date.append(date_flag)
                     elif middle_flag == 'sell':
-                        sell(stock_code,isCharge,item.date)
+                        sell(stock_code, isCharge, item.date)
                         ast_trans_date = item.date
                         trans.pop(0)
                         item = trans[0]
@@ -1188,10 +1211,11 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 already_trans_middle_date.append(date_flag)
                 continue
             if item.priority == 3:
-                sell(stock_code,isCharge,item.date)
+                sell(stock_code, isCharge, item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
                 continue
+
 
 # 中线条件插入
 def middle_insert():
@@ -1217,6 +1241,7 @@ def middle_insert():
                     trans_flag = 'buy'
 
     return sorted(trans_date_except_middle)
+
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
 def trading_strategy2_position(principa, stock_code, percent, stoploss, span, isCharge, isWhole, transdate):
@@ -1298,8 +1323,8 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     # print(middle_insert())
     # trans.pop(0)
     # print(trans)
-    print('buy',buy_signal)
-    print('sell',sell_signal)
+    print('buy', buy_signal)
+    print('sell', sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
@@ -1334,7 +1359,7 @@ def backtest2(span, stock_code, principal, percent, stoploss, isCharge, isWhole)
 
 
 def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss, isCharge, isWhole):
-    global gol_start,gol_end
+    global gol_start, gol_end
     start = datetime(int(start_day[0:4]), int(start_day[4:6]), int(start_day[6:8]))
     end = datetime(int(end_day[0:4]), int(end_day[4:6]), int(end_day[6:8]))
     startbak = start_day
