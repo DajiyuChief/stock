@@ -495,11 +495,11 @@ def check_condition_three(stock_code, isCharge, date, price, isWhole, type):
             if type == 'buy':
                 if type_flag == 1:
                     buy_signal.append(date)
-                    print('buy 中线', date)
+                    # print('buy 中线', date)
                     type = 0
                 elif type_flag == 0:
                     sell_signal.append(date)
-                    print('sell buy中线条件', date)
+                    # print('sell buy中线条件', date)
                     type_flag = 1
                 # 第一次成立从第二天开始
                 if flag == 1:
@@ -512,11 +512,11 @@ def check_condition_three(stock_code, isCharge, date, price, isWhole, type):
             if type == 'sell':
                 if type_flag == 1:
                     sell_signal.append(date)
-                    print('sell中线', date)
+                    # print('sell中线', date)
                     type = 0
                 elif type_flag == 0:
                     buy_signal.append(date)
-                    print('buy sell中线条件', date)
+                    # print('buy sell中线条件', date)
                     type_flag = 1
                 # 第一次成立从第二天开始
                 if flag == 1:
@@ -557,7 +557,7 @@ def buy_check_special(end):
                 if (high >= getBoll(date)[0]) & (span_days >= 3):
                     if (getRSI(date) <= 80) & (RSI_vary(date) > special_buy_rsi) & check_span_days(end, date, 'buy'):
                         buy_signal.append(MyStruct(date, 1, 'buy', date))
-                        print('buy 特1触高线', date)
+                        # print('buy 特1触高线', date)
                         flag2 = True
                     break
     return flag2
@@ -730,7 +730,7 @@ def sell_check_special(end):
                     if check_span_days(end, date, 'sell'):
                         if (getRSI(date) >= 20) & (RSI_vary(date) < special_sell_rsi * -1):
                             sell_signal.append(MyStruct(date, 1, 'sell', date))
-                            print('sell 特2触低线', date)
+                            # print('sell 特2触低线', date)
                             flag2 = True
                             break
                         elif get_price(next_date, 'low') < getBoll(next_date)[2]:
@@ -748,11 +748,11 @@ def check_special(end):
     rsi = getRSI(end)
     if rsi > 80:
         sell_signal.append(MyStruct(end, 1, 'sell', end))
-        print('sell rsi大于80', end)
+        # print('sell rsi大于80', end)
         return -1
     if rsi < 20:
         buy_signal.append(MyStruct(end, 1, 'buy', end))
-        print('buy rsi小于20', end)
+        # print('buy rsi小于20', end)
         return 1
     if high >= highBoll and lowBoll >= low:
         open = global_data.loc[global_data['trade_date'] == end].open.values[0]
@@ -760,12 +760,12 @@ def check_special(end):
         # 阴线收盘
         if open > close:
             sell_signal.append(MyStruct(end, 1, 'sell', end))
-            print('sell 阴线收盘', end)
+            # print('sell 阴线收盘', end)
             return -1
         # 阳线收盘
         if open < close:
             buy_signal.append(MyStruct(end, 1, 'buy', end))
-            print('buy 阳线收盘', end)
+            # print('buy 阳线收盘', end)
             return 1
     # 特数情况rsi大于80或rsi小于20
     return 0
@@ -1097,6 +1097,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     # shanchu
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
+    print(trans)
+    print('buy', buy_signal)
+    print('sell', sell_signal)
     # 记录当前交易类型
     trans_flag = 'buy'
     # 上一次交易日期
@@ -1129,6 +1132,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'sell'
                 condition_step = 0
             elif item.priority == 2:
+                print(item)
                 # # 只有一次中线执行完或者被其他条件中断后才执行下一个中线条件
                 # can_middle_flag = 0
                 # # 记录中线条件日期
@@ -1160,19 +1164,28 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 #         middle_flag = 'buy'
                 #         already_trans_middle_date.append(date_flag)
                 # trans_flag = middle_flag
-                if condition_step == 0 and item.time == item.date:
-                    middle_time = item.time
+                if condition_step == 0:
+                    if item.time == item.date:
+                        # print(item.time, item.date)
+                        middle_time = item.time
+                        buy(stock_code, isCharge, item.date, isWhole)
+                        trans.pop(0)
+                        trans_flag = 'sell'
+                        condition_step = condition_step + 1
+                    else:
+                        trans.pop(0)
+                        continue
+                # elif item.time != middle_time:
+                #     trans.pop(0)
+                #     continue
+                elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
+                    # print(item.time, item.date,middle_time)
                     buy(stock_code, isCharge, item.date, isWhole)
                     trans.pop(0)
                     trans_flag = 'sell'
                     condition_step = condition_step + 1
-                elif item.time != middle_time:
+                else:
                     trans.pop(0)
-                elif condition_step <= get_middle_len(middle_time):
-                    buy(stock_code, isCharge, item.date, isWhole)
-                    trans.pop(0)
-                    trans_flag = 'sell'
-                    condition_step = condition_step + 1
                 if condition_step == get_middle_len(middle_time):
                     condition_step = 0
             elif item.priority == 3:
@@ -1229,19 +1242,28 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 #         already_trans_middle_date.append(date_flag)
                 # trans_flag = middle_flag
                 # already_trans_middle_date.append(date_flag)
-                if condition_step == 0 and item.time == item.date:
-                    middle_time = item.time
+                if condition_step == 0:
+                    if item.time == item.date:
+                        # print(item.time, item.date)
+                        middle_time = item.time
+                        sell(stock_code, isCharge, item.date)
+                        trans.pop(0)
+                        trans_flag = 'buy'
+                        condition_step = condition_step + 1
+                    else:
+                        trans.pop(0)
+                        continue
+                # elif item.time != middle_time:
+                #     trans.pop(0)
+                #     continue
+                elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
+                    # print(item.time, item.date)
                     sell(stock_code, isCharge, item.date)
                     trans.pop(0)
                     trans_flag = 'buy'
                     condition_step = condition_step + 1
-                elif item.time != middle_time:
+                else:
                     trans.pop(0)
-                elif condition_step < get_middle_len(middle_time):
-                    sell(stock_code, isCharge, item.date)
-                    trans.pop(0)
-                    trans_flag = 'buy'
-                    condition_step = condition_step + 1
                 if condition_step == get_middle_len(middle_time):
                     condition_step = 0
             elif item.priority == 3:
@@ -1313,7 +1335,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 span_days = buy_check_touch_low(percent, d)[1]
                 new_day = date_calculate(d, span_days)
                 price = get_price(new_day, 'close')
-                print('buy 触低线', new_day)
+                # print('buy 触低线', new_day)
                 if not isWhole:
                     sell_check_condition_three(d)
                     if condition_step == 0:
@@ -1333,7 +1355,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 span_days = sell_check_touch_high(percent, d)[1]
                 new_day = date_calculate(d, span_days)
                 price = get_price(new_day, 'close')
-                print('sell 触高线', new_day)
+                # print('sell 触高线', new_day)
                 if not isWhole:
                     buy_check_condition_three(d)
                     if condition_step == 0:
@@ -1354,12 +1376,12 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     trans = buy_signal + sell_signal
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
-    print(trans)
+    # print(trans)
     # print(middle_insert())
     # trans.pop(0)
     # print(trans)
-    print('buy', buy_signal)
-    print('sell', sell_signal)
+    # print('buy', buy_signal)
+    # print('sell', sell_signal)
     print("共计： " + str(span) + "个交易日")
     print('---------------------------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------------------------')
@@ -1421,11 +1443,11 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # 调用示例：
 # backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
-# date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
+date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
-# date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
+date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220408', '20220613', '601069.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
