@@ -329,8 +329,6 @@ def check_span_days(start, end, type):
 
 
 # 检查中线条件
-
-
 def check_middle(date):
     global variety_rsi
     global condition_flag
@@ -454,6 +452,22 @@ def buy_check_touch_middle(end):
             flag2 = True
     return flag2
 
+def buy_check_middle(last_date, date):
+    # 股价从下往上越过中界线，即最高价大于中界线
+    flag1 = False
+    # 收盘为阳线，即收盘价高于开盘价
+    flag2 = False
+    midBoll = getBoll(date)[1]
+    today_close = get_price(date, 'close')
+    last_date_close = get_price(last_date, 'close')
+    if last_date_close < midBoll < today_close:
+        flag1 = True
+    if flag1:
+        open = global_data.loc[global_data['trade_date'] == date].open.values[0]
+        close = global_data.loc[global_data['trade_date'] == date].close.values[0]
+        if close > open:
+            flag2 = True
+    return flag2
 
 def buy_check_condition_three(end, rsi_flag=1):
     global variety_rsi
@@ -664,6 +678,22 @@ def sell_check_touch_middle(end):
             flag2 = True
     return flag2
 
+def sell_check_middle(last_date, date):
+    # 股价从上往下越过中界线，即最低价小于中界线
+    flag1 = False
+    # 收盘为阴线，即收盘价低于开盘价
+    flag2 = False
+    midBoll = getBoll(date)[1]
+    today_clsoe = get_price(date, 'close')
+    last_date_close = get_price(last_date, 'close')
+    if today_clsoe < midBoll < last_date_close:
+        flag1 = True
+    if flag1:
+        open = global_data.loc[global_data['trade_date'] == date].open.values[0]
+        close = global_data.loc[global_data['trade_date'] == date].close.values[0]
+        if close < open:
+            flag2 = True
+    return flag2
 
 def sell_check_condition_three(end, rsi_flag=-1):
     global variety_rsi
