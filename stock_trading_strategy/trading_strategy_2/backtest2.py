@@ -1097,9 +1097,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     # shanchu
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
-    print(trans)
-    print('buy', buy_signal)
-    print('sell', sell_signal)
+    # print(trans)
+    # print('buy', buy_signal)
+    # print('sell', sell_signal)
     # 记录当前交易类型
     trans_flag = 'buy'
     # 上一次交易日期
@@ -1132,7 +1132,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'sell'
                 condition_step = 0
             elif item.priority == 2:
-                print(item)
+                # print(item)
                 # # 只有一次中线执行完或者被其他条件中断后才执行下一个中线条件
                 # can_middle_flag = 0
                 # # 记录中线条件日期
