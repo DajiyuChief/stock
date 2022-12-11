@@ -342,9 +342,6 @@ def check_middle(last_date, date):
     day3 = date_calculate(day2, 1)
     day4 = date_calculate(day3, 1)
     flag.append(buy_check_middle(last_date, date) or sell_check_middle(last_date, date))
-    # for day in [date, day2, day3, day4]:
-    #     flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
-    # print(date, flag, get_price(date, 'close'), getBoll(date)[1])
     if flag[0] is True:
         # 第一次不看rsi变化率
         if condition_flag == 1:
@@ -360,7 +357,7 @@ def check_middle(last_date, date):
             condition_flag = condition_flag - 1
         else:
             if abs(RSI_vary(date)) > variety_rsi:
-                variety_rsi = variety_rsi * 1.5
+                # variety_rsi = variety_rsi * 1.5
                 if buy_check_middle(last_date, date):
                     middle_last_date = date
                     buy_signal.append(MyStruct(date, 2, 'buy', middle_start_date))
@@ -369,18 +366,23 @@ def check_middle(last_date, date):
                     middle_last_date = date
                     sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
                     middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
-            # variety_rsi = variety_rsi * 1.5
+                # variety_rsi = variety_rsi * 1.5
         # 记录与上次中线交易日相比，是否满足穿中线的条件
         for day in [day2, day3, day4]:
-            flag.append(buy_check_middle(middle_last_date, day) or sell_check_middle(middle_last_date, day))
+            if day2 > date_calculate(middle_last_date,3):
+                flag.append(False)
+            else:
+                flag.append(buy_check_middle(middle_last_date, day) or sell_check_middle(middle_last_date, day))
         del (flag[0])
         for i in range(0, 3):
             if flag[i] is True:
                 nextday_index = i
                 break
         if nextday_index != -1:
+            variety_rsi = variety_rsi * 1.5
             # next_date是除了一次的穿中线的第二天
             next_date = date_calculate(date, nextday_index + 1)
+            # print(middle_last_date,next_date,variety_rsi)
             check_middle(middle_last_date, next_date)
         else:
             if get_price(date, 'close') < getBoll(date)[1]:
@@ -1147,7 +1149,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
     check_stop(stoploss)
-    # print(trans)
+    print(trans)
     # print('buy', buy_signal)
     # print('sell', sell_signal)
     # 记录当前交易类型
@@ -1167,14 +1169,6 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             # for item in trans:
             if item.type != 'buy':
                 trans.pop(0)
-                # if item.priority == 2 and item.date == item.time:
-                #     new = []
-                #     for i in trans:
-                #         if not (i.priority == 2 and i.time == item.time):
-                #             new.append(i)
-                #     trans = new
-                # else:
-                #     trans.pop(0)
                 continue
             if item.priority == 1:
                 buy(stock_code, isCharge, item.date, isWhole)
@@ -1219,14 +1213,6 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             # for item in trans:
             if item.type != 'sell' or trans_flag == 'stop':
                 trans.pop(0)
-                # if item.priority == 2 and item.date == item.time:
-                #     new = []
-                #     for i in trans:
-                #         if not (i.priority == 2 and i.time == item.time):
-                #             new.append(i)
-                #     trans = new
-                # else:
-                #     trans.pop(0)
                 continue
             if trans_flag == 'stop':
                 if item.time == last_buy_date:
@@ -1252,9 +1238,6 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     else:
                         trans.pop(0)
                         continue
-                # elif item.time != middle_time:
-                #     trans.pop(0)
-                #     continue
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
                     # print(item.time, item.date)
                     sell(stock_code, isCharge, item.date)
@@ -1409,11 +1392,15 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # 调用示例：
 # backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
+
+
 # date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
-date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
+
+
+# date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220408', '20220613', '601069.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
@@ -1426,10 +1413,10 @@ date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, Tr
 # clear()
 # date_backtest2('20220513', '20220527', '300917.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
-
 # date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 
-# date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
+
+date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
 
 # set_info('20220220', '20220609', '512690.SH')
 # check_middle('20220516')
