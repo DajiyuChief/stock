@@ -1152,6 +1152,8 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     print(trans)
     # print('buy', buy_signal)
     # print('sell', sell_signal)
+    # 记录是否有中线条件执行
+    is_middle_processing = 0
     # 记录当前交易类型
     trans_flag = 'buy'
     # 上一次买日期，判断止损
@@ -1186,6 +1188,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                         trans_flag = 'sell'
                         last_buy_date = item.date
                         condition_step = condition_step + 1
+                    # item.time != item.date 情况
                     else:
                         trans.pop(0)
                         continue
