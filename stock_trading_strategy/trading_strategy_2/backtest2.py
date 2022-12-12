@@ -366,10 +366,13 @@ def check_middle(last_date, date):
                     middle_last_date = date
                     sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
                     middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
+            else:
+                # 穿中线但rsi变化率不满足时
+                middle_last_date = date_calculate(date, -1)
                 # variety_rsi = variety_rsi * 1.5
         # 记录与上次中线交易日相比，是否满足穿中线的条件
         for day in [day2, day3, day4]:
-            if day2 > date_calculate(middle_last_date,3):
+            if day2 > date_calculate(middle_last_date, 3):
                 flag.append(False)
             else:
                 flag.append(buy_check_middle(middle_last_date, day) or sell_check_middle(middle_last_date, day))
