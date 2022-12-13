@@ -358,24 +358,31 @@ def check_middle(last_date, date):
         else:
             if abs(RSI_vary(date)) > variety_rsi:
                 variety_rsi = variety_rsi * 1.5
+                middle_last_date = date
                 if buy_check_middle(last_date, date):
-                    middle_last_date = date
                     buy_signal.append(MyStruct(date, 2, 'buy', middle_start_date))
                     middle_buy_list.append(MyStruct(date, 2, 'buy', middle_start_date))
                 else:
-                    middle_last_date = date
                     sell_signal.append(MyStruct(date, 2, 'sell', middle_start_date))
                     middle_sell_list.append(MyStruct(date, 2, 'sell', middle_start_date))
             else:
                 # 穿中线但rsi变化率不满足时
-                middle_last_date = date_calculate(date, -1)
+                middle_last_date = last_date
+                if buy_check_middle(last_date, date):
+                    buy_signal.append(MyStruct(date, 2, 'notbuy', middle_start_date))
+                    middle_buy_list.append(MyStruct(date, 2, 'notbuy', middle_start_date))
+                else:
+                    sell_signal.append(MyStruct(date, 2, 'notsell', middle_start_date))
+                    middle_sell_list.append(MyStruct(date, 2, 'notsell', middle_start_date))
                 # variety_rsi = variety_rsi * 1.5
         # 记录与上次中线交易日相比，是否满足穿中线的条件
         for day in [day2, day3, day4]:
             if day2 > date_calculate(middle_last_date, 3):
                 flag.append(False)
-            else:
+            elif middle_last_date == last_date:
                 flag.append(buy_check_middle(middle_last_date, day) or sell_check_middle(middle_last_date, day))
+            else:
+                flag.append(buy_check_touch_middle(day) or sell_check_touch_middle(day))
         del (flag[0])
         for i in range(0, 3):
             if flag[i] is True:
@@ -1167,7 +1174,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
     check_stop(stoploss)
-    print(trans)
+    # print(trans)
     # print('buy', buy_signal)
     # print('sell', sell_signal)
     # 记录是否有中线条件执行
@@ -1187,7 +1194,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
         #     trans.pop(0)
         if trans_flag == 'buy':
             # for item in trans:
-            if item.type != 'buy':
+            if 'buy' not in item.type:
                 trans.pop(0)
                 continue
             if item.priority == 1:
@@ -1199,7 +1206,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             elif item.priority == 2:
                 if condition_step == 0:
                     if item.time == item.date:
-                        # print(item.time, item.date)
+                        # print(item)
                         middle_time = item.time
                         buy(stock_code, isCharge, item.date, isWhole)
                         trans.pop(0)
@@ -1217,9 +1224,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     else:
                         trans.pop(0)
                         continue
-                # elif item.time != middle_time:
-                #     trans.pop(0)
-                #     continue
+                elif item.type == 'notbuy' and item.time == middle_time:
+                    trans.pop(0)
+                    condition_step = condition_step + 1
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
                     # print(item.time, item.date,middle_time)
                     buy(stock_code, isCharge, item.date, isWhole)
@@ -1239,7 +1246,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 condition_step = 0
         elif trans_flag == 'sell' or trans_flag == 'stop':
             # for item in trans:
-            if item.type != 'sell' or trans_flag == 'stop':
+            if 'sell' not in item.type and 'stop' not in item.type:
                 trans.pop(0)
                 continue
             if trans_flag == 'stop':
@@ -1273,6 +1280,9 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     else:
                         trans.pop(0)
                         continue
+                elif item.type == 'notsell' and item.time == middle_time:
+                    trans.pop(0)
+                    condition_step = condition_step + 1
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
                     # print(item.time, item.date)
                     sell(stock_code, isCharge, item.date)
