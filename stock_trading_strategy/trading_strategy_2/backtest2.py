@@ -3,7 +3,7 @@ import sys
 from collections import namedtuple
 from operator import attrgetter
 
-import gol
+from data_modules import gol
 import numpy as np
 import pandas as pd
 import pymysql

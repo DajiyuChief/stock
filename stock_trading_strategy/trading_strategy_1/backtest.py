@@ -1,12 +1,16 @@
 import sys
 import math
+
+import numpy as np
 import pandas as pd
 import tushare as ts
 from datetime import date, datetime, timedelta
+from data_modules import database_connection
+from chinese_calendar import is_holiday
+import talib as ta
 
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 sys.path.append("../data_modules/database_connection.py")
-from data_modules import database_connection
 
 # 回测前一交易日数据
 yesterday_data = pd.DataFrame
@@ -16,11 +20,191 @@ now_data = pd.DataFrame
 history_data = pd.DataFrame
 # 至少240日历史数据
 history_240 = pd.DataFrame
-
+global_data = pd.DataFrame
+transaction_date = pd.DataFrame
+sell_signal = []
+buy_signal = []
+stock_code = ''
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
 # 显示所有列
 pd.set_option('display.max_columns', 1000)
+
+
+def set_info(start, end, stock):
+    global stock_code
+    global global_data
+    global transaction_date
+    global buy_signal, sell_signal
+    stock_code = stock
+    global_data = setdata(start, end, stock)
+    clear()
+    get_macd()
+    for i in range(len(global_data)):
+        transaction_date.append(global_data.trade_date[i])
+    transaction_date = sorted(transaction_date)
+    # global_data.to_csv('res' + stock + '.csv')
+    return global_data
+
+
+def clear():
+    global transaction_date, buy_signal, sell_signal
+    buy_signal = []
+    sell_signal = []
+    transaction_date = []
+
+
+def setdata(start_day, end_day, stock_code):
+    end = datetime(int(end_day[0:4]), int(end_day[4:6]), int(end_day[6:8]))
+    day = end
+    delta = timedelta(days=240 * 1.5 + 100)  # 采取时间差*1.5+100的方式确保能获得足够的交易日
+    n_days_forward = day - delta  # 当前日期向前推n天的时间
+    start_day = n_days_forward.strftime('%Y%m%d')
+    end_day = day.strftime('%Y%m%d')
+    while True:
+        try:
+            df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
+            if len(df) == 0:
+                df = pro.fund_daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
+            break
+        except:
+            continue
+    df = df.sort_values(by='trade_date', ascending=True)
+    return df
+
+
+def get_price(date, type):
+    if type == 'close':
+        return global_data.loc[global_data['trade_date'] == date].close.values[0]
+    elif type == 'open':
+        return global_data.loc[global_data['trade_date'] == date].open.values[0]
+    elif type == 'high':
+        return global_data.loc[global_data['trade_date'] == date].high.values[0]
+    elif type == 'low':
+        return global_data.loc[global_data['trade_date'] == date].low.values[0]
+
+
+def get_macd(date):
+    return global_data.loc[global_data['trade_date'] == date].macd.values[0]
+
+
+# 计算两个日期之间的交易日
+def workdays(start, end):
+    # 字符串格式日期的处理
+    if type(start) == str:
+        start = datetime.strptime(start, '%Y-%m-%d').date()
+    if type(end) == str:
+        end = datetime.strptime(end, '%Y-%m-%d').date()
+    # 开始日期大，颠倒开始日期和结束日期
+    if start > end:
+        start, end = end, start
+
+    counts = 0
+    while True:
+        if start > end:
+            break
+        if is_holiday(start) or start.weekday() == 5 or start.weekday() == 6:
+            start += timedelta(days=1)
+            continue
+        counts += 1
+        start += timedelta(days=1)
+    return counts
+
+
+# 日期前推 后推
+def date_calculate(date, days):
+    start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
+    day = date
+    if days > 0:
+        while days > 0:
+            start += timedelta(days=1)
+            day = start.strftime('%Y%m%d')
+            if day in transaction_date:
+                days = days - 1
+    elif days < 0:
+        while days < 0:
+            start -= timedelta(days=1)
+            day = start.strftime('%Y%m%d')
+            if day in transaction_date:
+                days = days + 1
+    return day
+
+
+# 返回交易时间列表
+def used_date(start, end):
+    date1 = global_data.loc[global_data['trade_date'] == start].index[0] + 1
+    date2 = global_data.loc[global_data['trade_date'] == end].index[0]
+    days = global_data[-date1:-date2]['trade_date']
+    return days
+
+
+# 基础的买卖条件，分别是日期、类型、macd变化率
+def basic_transaction(date, type, percent):
+    yesterday = date_calculate(date, -1)
+    today_low = get_price(date, 'low')
+    yesterday_low = get_price(yesterday, 'low')
+    today_high = get_price(date, 'high')
+    yesterday_high = get_price(date, 'high')
+    today_macd = get_macd(date)
+    yesterday_macd = get_macd(yesterday)
+    if type == 'buy' and today_low >= yesterday_low and today_macd > (1 + percent) * yesterday_macd:
+        return True
+    elif type == 'sell' and today_high <= yesterday_high and today_macd < (1 - percent) * yesterday_macd:
+        return True
+    else:
+        return False
+
+
+# 下面是特殊条件
+# 如果当日开盘价高于昨日收盘价，并且当日最高价高于昨日最高价，但为阴线收盘（当日收盘价低于开盘价），且MACD柱值比昨日没有上涨超过10% 以上，看空
+def special_1_sell(date, percent):
+    yesterday = date_calculate(date, -1)
+    today_open = get_price(date, 'open')
+    today_close = get_price(date, 'close')
+    today_high = get_price(date, 'high')
+    yesterday_close = get_price(yesterday, 'close')
+    yesterday_high = get_price(yesterday, 'high')
+    today_macd = get_macd(date)
+    yesterday_macd = get_macd(yesterday)
+    if today_open > yesterday_close and today_high > yesterday_high and today_open > today_close and today_macd < (
+            1 + percent) * yesterday_macd:
+        return True
+    else:
+        return False
+
+
+# 当日最低价虽然低于昨日最低价，但是MACD柱值比昨日下降少于30%，且K线为阳线收盘，看多
+def special_2_buy(date, percent):
+    yesterday = date_calculate(date, -1)
+    today_open = get_price(date, 'open')
+    today_low = get_price(date, 'low')
+    today_close = get_price(date, 'close')
+    yesterday_low = get_price(yesterday, 'low')
+    today_macd = get_macd(date)
+    yesterday_macd = get_macd(yesterday)
+    if today_low < yesterday_low and today_close > today_open and today_macd > (1 - percent) * yesterday_macd:
+        return True
+    else:
+        return False
+
+
+# 当日股价既创新高也创新低，即：最低价比昨日最低价更低，但同时最高价也比昨日最高价更高，此时如K线为阳线收盘且MACD柱值比昨日下降少于30%，看多（有仓位的保持，无仓位的可买入）；否则，看空
+def special_3_both(date, percnet):
+    yesterday = date_calculate(date, -1)
+    today_high = get_price(date, 'high')
+    yesterday_high = get_price(yesterday, 'high')
+    yesterday = date_calculate(date, -1)
+    today_open = get_price(date, 'open')
+    today_low = get_price(date, 'low')
+    today_close = get_price(date, 'close')
+    yesterday_low = get_price(yesterday, 'low')
+    today_macd = get_macd(date)
+    yesterday_macd = get_macd(yesterday)
+    if today_low < yesterday_low and today_high > yesterday_high and today_close > today_open and today_macd > (
+            1 - percnet) * yesterday_macd:
+        return 'buy'
+    else:
+        return 'sell'
 
 
 def load_historical_data(stock_code, start_day, end_day):
@@ -324,18 +508,20 @@ def check_sell_3day():
 
 
 # 按照文档的计算方式
-def get_macd():
-    df = history_data
-    # 12日均值
-    shortEMA = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
-    # 26日均值
-    longEMA = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
-    # 差值
-    DIFF = shortEMA - longEMA
-    DEA = DIFF.ewm(span=9, adjust=False, min_periods=9).mean()
-    MACD = DIFF - DEA
-    MACD *= 2
-    return MACD
+# def get_macd():
+#     global global_data
+#     df = global_data
+#     # 12日均值
+#     shortEMA = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
+#     # 26日均值
+#     longEMA = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
+#     # 差值
+#     DIFF = shortEMA - longEMA
+#     DEA = DIFF.ewm(span=9, adjust=False, min_periods=9).mean()
+#     MACD = DIFF - DEA
+#     MACD *= 2
+#     global_data['macd'] = MACD
+#     return MACD
 
 
 def buy_check(percent):
@@ -672,8 +858,11 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
     else:
         return trading_strategy1_position(principal, stock_code, percent, stoploss, span, isCharge)
 
+
 # 调用示例：
 # backtest1(30, '600795.SH', 9999999, 0.3, 0.1, False, False)
+set_info('20220101', '20220303', '600795.SH')
+print(global_data)
 # date_backtest1('20220101', '20220303', '600795.SH', 9999999, 0.3, 0.1, False, False)
 
 # load_historical_data('600795.SH', '20220101', '20220303')
