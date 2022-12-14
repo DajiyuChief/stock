@@ -1174,7 +1174,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
     check_stop(stoploss)
-    # print(trans)
+    print(trans)
     # print('buy', buy_signal)
     # print('sell', sell_signal)
     # 记录是否有中线条件执行
@@ -1206,6 +1206,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             elif item.priority == 2:
                 if condition_step == 0:
                     if item.time == item.date:
+                        # print(2, item.time, item.date)
                         # print(item)
                         middle_time = item.time
                         buy(stock_code, isCharge, item.date, isWhole)
@@ -1214,7 +1215,8 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                         last_buy_date = item.date
                         condition_step = condition_step + 1
                     # item.time != item.date 情况
-                    elif date_calculate(item.time,3) < item.date:
+                    elif date_calculate(item.time,3) > item.date:
+                        # print(2, item.time, item.date)
                         middle_time = item.time
                         buy(stock_code, isCharge, item.date, isWhole)
                         trans.pop(0)
@@ -1244,12 +1246,12 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans_flag = 'sell'
                 last_buy_date = item.date
                 condition_step = 0
-        elif trans_flag == 'sell' or trans_flag == 'stop':
+        elif trans_flag == 'sell':
             # for item in trans:
             if 'sell' not in item.type and 'stop' not in item.type:
                 trans.pop(0)
                 continue
-            if trans_flag == 'stop':
+            if item.type == 'stop':
                 if item.time == last_buy_date:
                     stop_loss(stock_code, isCharge, item.date)
                     trans.pop(0)
@@ -1257,6 +1259,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     condition_step = 0
                     continue
             if item.priority == 1:
+                # print(1, item.time, item.date)
                 sell(stock_code, isCharge, item.date)
                 trans.pop(0)
                 trans_flag = 'buy'
@@ -1264,15 +1267,16 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
             elif item.priority == 2:
                 if condition_step == 0:
                     if item.time == item.date:
-                        # print(item.time, item.date)
+                        # print(2,item.time, item.date)
                         middle_time = item.time
                         sell(stock_code, isCharge, item.date)
                         trans.pop(0)
                         trans_flag = 'buy'
                         condition_step = condition_step + 1
-                    elif date_calculate(item.time,3) < item.date:
+                    elif date_calculate(item.time,3) > item.date:
+                        # print(2, item.time, item.date)
                         middle_time = item.time
-                        buy(stock_code, isCharge, item.date, isWhole)
+                        sell(stock_code, isCharge, item.date)
                         trans.pop(0)
                         trans_flag = 'buy'
                         last_buy_date = item.date
@@ -1284,7 +1288,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     trans.pop(0)
                     condition_step = condition_step + 1
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
-                    # print(item.time, item.date)
+                    # print(2,item.time, item.date)
                     sell(stock_code, isCharge, item.date)
                     trans.pop(0)
                     trans_flag = 'buy'
@@ -1439,13 +1443,13 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
 
 
-date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
+# date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 
 
-date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
+# date_backtest2('20220318', '20220524', '600546.SH', 9999999, 0.1, 0.3, False, True)
 # clear()
 # date_backtest2('20220408', '20220613', '601069.SH', 9999999, 0.1, 0.3, False, True)
 # clear()

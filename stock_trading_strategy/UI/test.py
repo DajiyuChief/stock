@@ -4,13 +4,13 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from trading2 import getBoll
+
 import gol
-from backtest2 import setdata, date_calculate, set_info,date_backtest2
-from backtest2 import getRSI
+from trading_strategy_2.backtest2 import setdata, date_calculate, set_info,date_backtest2
+
 import talib as ta
 import tushare as ts
-from backtest2 import workdays
+
 from chinese_calendar import is_workday
 from datetime import datetime, timedelta
 from chinese_calendar import is_holiday
@@ -153,11 +153,11 @@ def date_calculate2(date, days):
 # print(data2)
 # def run():
 #     gol.set_value('')
-# date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
-date1 = DateType(date = '2022' ,type = '1')
-m = MyStruct('20220202','1')
-print(m)
-print(m.date)
-print(m.type)
+date_backtest2('20220316', '20220607', '601009.SH', 9999999, 0.1, 0.3, False, True)
+# date1 = DateType(date = '2022' ,type = '1')
+# m = MyStruct('20220202','1')
+# print(m)
+# print(m.date)
+# print(m.type)
 # print(date1.date)
 # print(date1.type)
