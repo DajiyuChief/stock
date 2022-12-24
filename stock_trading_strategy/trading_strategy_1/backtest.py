@@ -22,8 +22,13 @@ history_data = pd.DataFrame
 history_240 = pd.DataFrame
 global_data = pd.DataFrame
 transaction_date = pd.DataFrame
+last_buy_date = ''
+last_sell_date = ''
 sell_signal = []
 buy_signal = []
+real_trade_date = []
+high_point = []
+low_point = []
 stock_code = ''
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
@@ -35,15 +40,16 @@ def set_info(start, end, stock):
     global stock_code
     global global_data
     global transaction_date
-    global buy_signal, sell_signal
+    global buy_signal, sell_signal,real_trade_date
     stock_code = stock
     global_data = setdata(start, end, stock)
+    set_macd()
     clear()
-    get_macd()
     for i in range(len(global_data)):
         transaction_date.append(global_data.trade_date[i])
     transaction_date = sorted(transaction_date)
     # global_data.to_csv('res' + stock + '.csv')
+    real_trade_date = used_date(start, end)
     return global_data
 
 
@@ -132,9 +138,13 @@ def date_calculate(date, days):
 
 # 返回交易时间列表
 def used_date(start, end):
-    date1 = global_data.loc[global_data['trade_date'] == start].index[0] + 1
-    date2 = global_data.loc[global_data['trade_date'] == end].index[0]
-    days = global_data[-date1:-date2]['trade_date']
+    if start not in transaction_date:
+        start = date_calculate(start, 1)
+    if end not in transaction_date:
+        end = date_calculate(end, -1)
+    index1 = transaction_date.index(start)
+    index2 = transaction_date.index(end) + 1
+    days = transaction_date[index1:index2]
     return days
 
 
@@ -206,6 +216,62 @@ def special_3_both(date, percnet):
     else:
         return 'sell'
 
+def special_4_sell(date):
+    last_day_last = date_calculate(date, -1)
+    last_day_last_low = get_price(last_day_last, 'low')
+    last_buy_date_low = get_price(date, 'low')
+    min_price = min(last_day_last_low, last_buy_date_low)
+    for i in range(1,4):
+        new_date = date_calculate(date, i)
+        new_price = get_price(new_date, 'low')
+        if new_price < min_price and get_macd(new_date) < get_macd(date_calculate(new_date, -1)) * 0.7:
+            flag = i
+            #sell
+
+def special_5_buy(date):
+    last_day_last = date_calculate(date, -1)
+    last_day_last_high = get_price(last_day_last, 'high')
+    last_buy_date_high = get_price(date, 'high')
+    max_price = max(last_day_last_high, last_buy_date_high)
+    for i in range(1, 4):
+        new_date = date_calculate(date, i)
+        new_price = get_price(new_date, 'high')
+        if new_price > max_price and get_macd(new_date) > get_macd(date_calculate(new_date, -1)) * 1.3:
+            flag = i
+            # buy
+
+# 买入前提
+def check_buy():
+    global high_point,low_point
+    count = 0
+    for time in reversed(real_trade_date):
+        count = count + 1
+        if count == len(real_trade_date) - 1:
+            break
+        pre_day = date_calculate(time, -2)
+        mid_day = date_calculate(time, -1)
+        post_day = time
+        pre_day_low = get_price(pre_day, 'low')
+        mid_day_low = get_price(mid_day, 'low')
+        post_day_low = get_price(post_day, 'low')
+        pre_day_high = get_price(pre_day, 'high')
+        mid_day_high = get_price(mid_day, 'high')
+        post_day_high = get_price(post_day, 'high')
+        if mid_day_low < pre_day_low and mid_day_low < post_day_low:
+            low_point.append(mid_day_low)
+        if mid_day_high > pre_day_high and mid_day_high > post_day_high:
+            high_point.append(mid_day_high)
+    if low_point[0] > low_point[1] or (low_point[0] <= low_point[1] and get_price(real_trade_date[-1], 'high') > high_point[0]):
+        return True
+    else:
+        return False
+
+# 不买条件，也是卖出条件
+def notbuy():
+    if low_point[0] < low_point[1] < low_point[2]:
+        return True
+    if low_point[1] > low_point[2] > low_point[0]:
+        return True
 
 def load_historical_data(stock_code, start_day, end_day):
     df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
@@ -508,20 +574,20 @@ def check_sell_3day():
 
 
 # 按照文档的计算方式
-# def get_macd():
-#     global global_data
-#     df = global_data
-#     # 12日均值
-#     shortEMA = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
-#     # 26日均值
-#     longEMA = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
-#     # 差值
-#     DIFF = shortEMA - longEMA
-#     DEA = DIFF.ewm(span=9, adjust=False, min_periods=9).mean()
-#     MACD = DIFF - DEA
-#     MACD *= 2
-#     global_data['macd'] = MACD
-#     return MACD
+def set_macd():
+    global global_data
+    df = global_data
+    # 12日均值
+    shortEMA = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
+    # 26日均值
+    longEMA = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
+    # 差值
+    DIFF = shortEMA - longEMA
+    DEA = DIFF.ewm(span=9, adjust=False, min_periods=9).mean()
+    MACD = DIFF - DEA
+    MACD *= 2
+    global_data['macd'] = MACD
+    return MACD
 
 
 def buy_check(percent):
@@ -862,7 +928,8 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
 # 调用示例：
 # backtest1(30, '600795.SH', 9999999, 0.3, 0.1, False, False)
 set_info('20220101', '20220303', '600795.SH')
-print(global_data)
+check_buy()
+# print(global_data)
 # date_backtest1('20220101', '20220303', '600795.SH', 9999999, 0.3, 0.1, False, False)
 
 # load_historical_data('600795.SH', '20220101', '20220303')
