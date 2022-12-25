@@ -291,9 +291,11 @@ def find_nearest_point(date, type):
 def plug_rule1(date):
     near_low = find_nearest_point(date, 'low')
     near_high = find_nearest_point(date, 'high')
-    for i in range(0, len(low_point)):
-        if low_point[i + 1] == near_low:
-            near_low_pre = low_point[i]
+    low_index = low_point.index(near_low)
+    if low_index >= 1:
+        near_low_pre = low_point[low_index - 1]
+    else:
+        return False
     if near_low.data > near_low_pre.data or (
             near_low.data < near_low_pre.data and get_price(date, 'high') > near_high.data):
         return True
@@ -977,6 +979,8 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
 # 调用示例：
 # backtest1(30, '600795.SH', 9999999, 0.3, 0.1, False, False)
 set_info('20220101', '20220303', '600795.SH')
+check_low_high_point()
+print(plug_rule1('20220121'),plug_rule2('20220211'))
 # print(global_data)
 # date_backtest1('20220101', '20220303', '600795.SH', 9999999, 0.3, 0.1, False, False)
 
