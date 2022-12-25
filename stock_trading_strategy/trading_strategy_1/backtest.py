@@ -1,5 +1,6 @@
 import sys
 import math
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
@@ -30,6 +31,8 @@ real_trade_date = []
 high_point = []
 low_point = []
 stock_code = ''
+Point = namedtuple("Point", "date data")
+MyStruct = namedtuple("MyStruct", "date priority type time")
 # 显示所有行
 pd.set_option('display.max_rows', 1000)
 # 显示所有列
@@ -40,7 +43,7 @@ def set_info(start, end, stock):
     global stock_code
     global global_data
     global transaction_date
-    global buy_signal, sell_signal,real_trade_date
+    global buy_signal, sell_signal, real_trade_date
     stock_code = stock
     global_data = setdata(start, end, stock)
     set_macd()
@@ -216,17 +219,19 @@ def special_3_both(date, percnet):
     else:
         return 'sell'
 
+
 def special_4_sell(date):
     last_day_last = date_calculate(date, -1)
     last_day_last_low = get_price(last_day_last, 'low')
     last_buy_date_low = get_price(date, 'low')
     min_price = min(last_day_last_low, last_buy_date_low)
-    for i in range(1,4):
+    for i in range(1, 4):
         new_date = date_calculate(date, i)
         new_price = get_price(new_date, 'low')
         if new_price < min_price and get_macd(new_date) < get_macd(date_calculate(new_date, -1)) * 0.7:
             flag = i
-            #sell
+            # sell
+
 
 def special_5_buy(date):
     last_day_last = date_calculate(date, -1)
@@ -240,9 +245,10 @@ def special_5_buy(date):
             flag = i
             # buy
 
+
 # 买入前提
-def check_buy():
-    global high_point,low_point
+def check_low_high_point():
+    global high_point, low_point
     count = 0
     for time in reversed(real_trade_date):
         count = count + 1
@@ -258,13 +264,55 @@ def check_buy():
         mid_day_high = get_price(mid_day, 'high')
         post_day_high = get_price(post_day, 'high')
         if mid_day_low < pre_day_low and mid_day_low < post_day_low:
-            low_point.append(mid_day_low)
+            low_point.append(Point(mid_day, mid_day_low))
         if mid_day_high > pre_day_high and mid_day_high > post_day_high:
-            high_point.append(mid_day_high)
-    if low_point[0] > low_point[1] or (low_point[0] <= low_point[1] and get_price(real_trade_date[-1], 'high') > high_point[0]):
+            high_point.append(Point(mid_day, mid_day_high))
+    high_point.reverse()
+    low_point.reverse()
+    print(low_point, high_point)
+
+
+def find_nearest_point(date, type):
+    if type == 'low':
+        for i in range(0, len(low_point)):
+            if i == len(low_point):
+                return low_point[i]
+            if low_point[i].date <= date < low_point[i + 1].date:
+                return low_point[i]
+    if type == 'high':
+        for i in range(0, len(high_point)):
+            if i == len(high_point):
+                return high_point[i]
+            if high_point[i].date <= date < high_point[i + 1].date:
+                return high_point[i]
+
+
+# 增补规则1
+def plug_rule1(date):
+    near_low = find_nearest_point(date, 'low')
+    near_high = find_nearest_point(date, 'high')
+    for i in range(0, len(low_point)):
+        if low_point[i + 1] == near_low:
+            near_low_pre = low_point[i]
+    if near_low.data > near_low_pre.data or (
+            near_low.data < near_low_pre.data and get_price(date, 'high') > near_high.data):
         return True
     else:
         return False
+
+
+# 增补规则2:不买入。已经有先手买入的，应尽快卖出
+def plug_rule2(date):
+    near_low = find_nearest_point(date, 'low')
+    low_index = low_point.index(near_low)
+    if low_index >= 2:
+        near_low_pre = low_point[low_index - 1]
+        near_low_pre_pre = low_point[low_index - 2]
+        if near_low_pre_pre.data > near_low_pre.data > near_low.data or near_low_pre.data > near_low_pre_pre.data > near_low.data:
+            return True
+        else:
+            return False
+
 
 # 不买条件，也是卖出条件
 def notbuy():
@@ -272,6 +320,7 @@ def notbuy():
         return True
     if low_point[1] > low_point[2] > low_point[0]:
         return True
+
 
 def load_historical_data(stock_code, start_day, end_day):
     df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
@@ -928,7 +977,6 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
 # 调用示例：
 # backtest1(30, '600795.SH', 9999999, 0.3, 0.1, False, False)
 set_info('20220101', '20220303', '600795.SH')
-check_buy()
 # print(global_data)
 # date_backtest1('20220101', '20220303', '600795.SH', 9999999, 0.3, 0.1, False, False)
 
