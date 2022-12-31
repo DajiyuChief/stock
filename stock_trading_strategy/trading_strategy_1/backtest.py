@@ -12,6 +12,7 @@ import talib as ta
 
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 sys.path.append("../data_modules/database_connection.py")
+db = database_connection.MySQLDb()
 
 # 回测前一交易日数据
 yesterday_data = pd.DataFrame
@@ -27,6 +28,8 @@ last_buy_date = ''
 last_sell_date = ''
 sell_signal = []
 buy_signal = []
+buy_date = []
+sell_date = []
 real_trade_date = []
 high_point = []
 low_point = []
@@ -221,38 +224,46 @@ def special_3_both(date, percnet):
 
 
 def special_4_sell(date):
-    last_day_last = date_calculate(date, -1)
+    global buy_date
+    # if len(sell_date) != len(buy_date) - 1:
+    #     return False
+    last_buy = buy_date[-1]
+    last_day_last = date_calculate(last_buy, -1)
     last_day_last_low = get_price(last_day_last, 'low')
-    last_buy_date_low = get_price(date, 'low')
+    last_buy_date_low = get_price(last_buy, 'low')
     min_price = min(last_day_last_low, last_buy_date_low)
-    for i in range(1, 4):
-        new_date = date_calculate(date, i)
-        new_price = get_price(new_date, 'low')
-        if new_price < min_price and get_macd(new_date) < get_macd(date_calculate(new_date, -1)) * 0.7:
-            flag = i
-            # sell
+    if date_calculate(last_buy, 3) <= date:
+        new_price = get_price(date, 'low')
+        if new_price < min_price and get_macd(date) < get_macd(date_calculate(date, -1)) * 0.7:
+            return True
+    return False
 
 
 def special_5_buy(date):
-    last_day_last = date_calculate(date, -1)
+    global sell_date
+    # if len(buy_date) != len(sell_date):
+    #     return False
+    if len(sell_date) == 0:
+        return False
+    last_sell = sell_date[-1]
+    last_day_last = date_calculate(last_sell, -1)
     last_day_last_high = get_price(last_day_last, 'high')
-    last_buy_date_high = get_price(date, 'high')
+    last_buy_date_high = get_price(last_sell, 'high')
     max_price = max(last_day_last_high, last_buy_date_high)
-    for i in range(1, 4):
-        new_date = date_calculate(date, i)
-        new_price = get_price(new_date, 'high')
-        if new_price > max_price and get_macd(new_date) > get_macd(date_calculate(new_date, -1)) * 1.3:
-            flag = i
-            # buy
+    if date_calculate(last_sell, 3) <= date:
+        new_price = get_price(date, 'high')
+        if new_price > max_price and get_macd(date) > get_macd(date_calculate(date, -1)) * 1.3:
+            return True
+    return False
 
 
 # 买入前提
 def check_low_high_point():
     global high_point, low_point
     count = 0
-    for time in reversed(real_trade_date):
+    for time in reversed(transaction_date):
         count = count + 1
-        if count == len(real_trade_date) - 1:
+        if count == len(transaction_date) - 1:
             break
         pre_day = date_calculate(time, -2)
         mid_day = date_calculate(time, -1)
@@ -269,19 +280,17 @@ def check_low_high_point():
             high_point.append(Point(mid_day, mid_day_high))
     high_point.reverse()
     low_point.reverse()
-    print(low_point, high_point)
-
 
 def find_nearest_point(date, type):
     if type == 'low':
         for i in range(0, len(low_point)):
-            if i == len(low_point):
+            if i == len(low_point) - 1:
                 return low_point[i]
             if low_point[i].date <= date < low_point[i + 1].date:
                 return low_point[i]
     if type == 'high':
         for i in range(0, len(high_point)):
-            if i == len(high_point):
+            if i == len(high_point) - 1:
                 return high_point[i]
             if high_point[i].date <= date < high_point[i + 1].date:
                 return high_point[i]
@@ -312,16 +321,82 @@ def plug_rule2(date):
         near_low_pre_pre = low_point[low_index - 2]
         if near_low_pre_pre.data > near_low_pre.data > near_low.data or near_low_pre.data > near_low_pre_pre.data > near_low.data:
             return True
-        else:
-            return False
+    return False
 
 
-# 不买条件，也是卖出条件
-def notbuy():
-    if low_point[0] < low_point[1] < low_point[2]:
-        return True
-    if low_point[1] > low_point[2] > low_point[0]:
-        return True
+def check_buy(date):
+    global buy_date,sell_date
+    flag = False
+    if len(buy_date) != len(sell_date):
+        return False
+    if plug_rule1(date):
+        if not plug_rule2(date):
+            flag1 = False
+        elif special_5_buy(date):
+            flag = True
+        elif special_2_buy(date, 0.3):
+            flag = True
+        elif special_3_both(date, 0.3) == 'buy':
+            flag = True
+        elif basic_transaction(date, 'buy', 0.3):
+            flag = True
+    if flag:
+        buy_date.append(date)
+    return flag
+
+def check_sell(date):
+    flag = False
+    if len(sell_date) != len(buy_date) - 1:
+        return False
+    if plug_rule2(date):
+        flag = True
+    elif special_1_sell(date, 0.3):
+        flag = True
+    elif special_3_both(date, 0.3) == 'sell':
+        flag = True
+    elif basic_transaction(date, 'sell', 0.1):
+        flag = True
+    if flag:
+        sell_date.append(date)
+    return flag
+
+def transaction():
+    flag = 1
+    for day in real_trade_date:
+        if flag == 1:
+            if check_buy(day):
+                flag = 0
+        elif flag == 0:
+            if check_sell(day):
+                flag =1
+    print(buy_date,sell_date)
+
+# def buy_check(percent):
+#     if not_buy_condition():
+#         return False
+#     if check_special() == 1:
+#         return True
+#     if buy_check_special():
+#         return True
+#     if buy_check_high():
+#         return True
+#     if buy_check_normal(percent) and not check_sell_3day():
+#         return True
+#     return False
+#
+#
+# def sell_check(percent):
+#     if not_buy_condition():
+#         return True
+#     if check_special() == -1:
+#         return True
+#     if sell_check_special():
+#         return True
+#     if sell_check_low():
+#         return True
+#     if sell_check_normal(percent) and not check_buy_3day():
+#         return True
+#     return False
 
 
 def load_historical_data(stock_code, start_day, end_day):
@@ -824,8 +899,7 @@ def trading_strategy1_position(principal, stock_code, percent, stoploss, span, i
     all = principal
     # 起始资金数，用于判断是否需要强制止损
     begin = principal
-
-    db = database_connection.MySQLDb()
+    # db = database_connection.MySQLDb()
     for d in day:
         end = history_240.loc[history_240['trade_date'] == d].index[0]
         global history_data
@@ -955,20 +1029,7 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
     n_days_forward = day - delta  # 当前日期向前推n天的时间
     start_day = n_days_forward.strftime('%Y%m%d')
     end_day = day.strftime('%Y%m%d')
-    df = []
-    while True:
-        try:
-            df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
-            break
-        except:
-            continue
-    df = df.sort_values(by='trade_date', ascending=True)
-
-    global history_240
-    history_240 = df
-    global history_data
-    history_data = df
-    db = database_connection.MySQLDb()
+    set_info(start_day, end_day, stock_code)
     db.clean_table("TRUNCATE TABLE `backtest1`;")
     if isWhole:
         return trading_strategy1_whole(principal, stock_code, percent, stoploss, span, isCharge)
@@ -980,7 +1041,8 @@ def date_backtest1(start_day, end_day, stock_code, principal, percent, stoploss,
 # backtest1(30, '600795.SH', 9999999, 0.3, 0.1, False, False)
 set_info('20220101', '20220303', '600795.SH')
 check_low_high_point()
-print(plug_rule1('20220121'),plug_rule2('20220211'))
+transaction()
+# print(plug_rule1('20220121'), plug_rule2('20220211'))
 # print(global_data)
 # date_backtest1('20220101', '20220303', '600795.SH', 9999999, 0.3, 0.1, False, False)
 
