@@ -1,4 +1,6 @@
 #生成K线图并保存为html
+import datetime
+
 import tushare as ts
 from pyecharts import options as opts
 from pyecharts.charts import Kline, Bar, Grid, Line
@@ -19,6 +21,10 @@ pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 
 
 def plot_kline_volume_signal(data, name) -> Grid:
+    days_date = data.index.values
+    high_price = data['high'].values
+    sell_point = dict(zip(days_date,high_price))
+    # print(sell_point)
     kline = (
         Kline(init_opts=opts.InitOpts(width="1800px", height="1000px"))
         .add_xaxis(xaxis_data=list(data.index))
@@ -26,6 +32,14 @@ def plot_kline_volume_signal(data, name) -> Grid:
             series_name="日K",
             y_axis=data[["open", "close", "low", "high"]].values.tolist(),
             itemstyle_opts=opts.ItemStyleOpts(color="#ec0000", color0="#00da3c"),
+            markpoint_opts=opts.MarkPointOpts(
+                    data=[
+                        opts.MarkPointItem(coord=[days_date,high_price], name='test', value='买',
+                                           itemstyle_opts={'color': '#08a2f9'}),
+                        # opts.MarkPointItem(coord=[days_date[0], high_price[0]],name='test',value='买',itemstyle_opts={'color':'#08a2f9'}),
+                        # opts.MarkPointItem(coord=[days_date[-1], high_price[-1]],name='test',value='卖',itemstyle_opts={'color':'#2440b3'}),
+                    ]
+            ),
         )
         .set_global_opts(legend_opts=opts.LegendOpts(is_show=True, pos_bottom=10, pos_left="center"),
                          datazoom_opts=[
@@ -88,7 +102,16 @@ def plot_kline_volume_signal(data, name) -> Grid:
                              )),
                          )
     )
-
+    for i in range(0,len(days_date)):
+        kline.add_yaxis(
+            series_name="日K",
+            y_axis=data[["open", "close", "low", "high"]].values.tolist(),
+            markpoint_opts=opts.MarkPointOpts(
+                        data=[
+                            opts.MarkPointItem(coord=[days_date[i],high_price[i]], name='test', value='买',
+                                               itemstyle_opts={'color': '#08a2f9'}),
+                        ]
+                ),)
     bar = (
         Bar()
         .add_xaxis(xaxis_data=list(data.index))

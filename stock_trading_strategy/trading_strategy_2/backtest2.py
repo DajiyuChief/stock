@@ -215,6 +215,7 @@ def date_calculate(date, days):
 def used_date(start, end):
     date1 = global_data.loc[global_data['trade_date'] == start].index[0] + 1
     date2 = global_data.loc[global_data['trade_date'] == end].index[0]
+    print(date1,date2)
     days = global_data[-date1:-date2]['trade_date']
     return days
 
@@ -1327,12 +1328,6 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     begin = principal
     # 用迭代器跳过指定天数
     day_iter = iter(day)
-    # 记录所有传中线的日期
-    # for date in day:
-    # if get_price(date_calculate(date, -1), 'close') > getBoll(date)[1] > get_price(date, 'close'):
-    #     all_middle_sell_list.append(date)
-    # if get_price(date_calculate(date, -1), 'close') < getBoll(date)[1] < get_price(date, 'close'):
-    #     all_middle_buy_list.append(date)
     for d in day_iter:
         yesterday = date_calculate(d, -1)
         price = get_price(d, 'close')
@@ -1350,12 +1345,6 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                         buy_signal.append(MyStruct(new_day, 3, 'buy', new_day))
                 else:
                     buy_signal.append(MyStruct(new_day, 3, 'buy', new_day))
-            # 哪个优先级高
-            # 怎么将中线条件插入？
-            # check_middle(d)
-            # if is_buy_condition_three(d):
-            #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'buy')
-            # print('buy3 中线', d)
         # 确保有可卖出的股数
         if True:
             sell_check(percent, d)
@@ -1371,9 +1360,6 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
                 else:
                     sell_signal.append(MyStruct(new_day, 3, 'sell', new_day))
             check_middle(yesterday, d)
-            # if is_sell_condition_three(d):
-            #     # print('sell3 中线', d)
-            #     check_condition_three(stock_code, isCharge, d, price, isWhole, 'sell')
         # 强制止损
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
             stop_loss(stock_code, isCharge, d)
@@ -1437,7 +1423,22 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     db.clean_table("TRUNCATE TABLE `backtest2`;")
     return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge, isWhole, transdate)
 
-
+def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole):
+    end = date.today()
+    offset1 = timedelta(days=-(240 * 1.5 + 100))
+    offset2 = timedelta(days=-120)
+    # 日期格式化
+    start = end + offset1
+    end_ymd = end.strftime('%Y%m%d')
+    start_ymd = (end + offset1).strftime('%Y%m%d')
+    start_ymd_real = (end + offset2).strftime('%Y%m%d')
+    # 第一次设置用来获取真实交易时间
+    set_info(start_ymd_real,end_ymd,stock_code)
+    transdate = global_data['trade_date'].values
+    # 第二次设置长时间，保证取到所有需要的值
+    set_info(start_ymd,end_ymd,stock_code)
+    db.clean_table("TRUNCATE TABLE `actual2`;")
+    return trading_strategy2_position(principal, stock_code, percent, stoploss, 120, isCharge, isWhole, transdate)
 # 调用示例：
 # backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
@@ -1465,7 +1466,7 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
 # date_backtest2('20220325', '20220614', '600073.SH', 9999999, 0.1, 0.3, False, True)
 
 
-date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
+# date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, True)
 
 # set_info('20220220', '20220609', '512690.SH')
 # check_middle('20220516')
@@ -1475,3 +1476,4 @@ date_backtest2('20220427', '20220609', '512690.SH', 9999999, 0.1, 0.3, False, Tr
 # print(middle_sell_list)
 # print(not_buy_date)
 # print(not_sell_date)
+realtime('600073.SH', 9999999, 0.1, 0.3, False, True)

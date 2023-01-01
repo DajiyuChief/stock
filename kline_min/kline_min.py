@@ -1,3 +1,5 @@
+import datetime
+
 import efinance as ef
 from pyecharts import options as opts
 from pyecharts.charts import Kline, Bar, Grid, Line, Tab, Timeline
@@ -141,7 +143,12 @@ def generate_html():
     tab = Tab()
     stockcode = input("输入股票代码：")
     name = get_name(stockcode)
-    df = ts.get_hist_data(stockcode).sort_index() #生成带有均线的日K图
+    today = datetime.date.today()
+    offset = datetime.timedelta(days=-120)
+    # 日期格式化
+    finaldata = (today + offset).strftime('%Y-%m-%d')
+    print(finaldata, today)
+    df = ts.get_hist_data(stockcode,start=finaldata,end=str(today)).sort_index() #生成带有均线的日K图
     for freq in [5, 15, 30, 60]:  # 101为日代码
         data = ef.stock.get_quote_history(stockcode, klt=freq)  # 将数据按照时间排序
         data.set_index(["日期"], inplace=True)  # 设置日期为索引
