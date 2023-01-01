@@ -1424,12 +1424,14 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge, isWhole, transdate)
 
 def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole):
+    global gol_end
     end = date.today()
     offset1 = timedelta(days=-(240 * 1.5 + 100))
     offset2 = timedelta(days=-120)
     # 日期格式化
     start = end + offset1
     end_ymd = end.strftime('%Y%m%d')
+    gol_end = end_ymd
     start_ymd = (end + offset1).strftime('%Y%m%d')
     start_ymd_real = (end + offset2).strftime('%Y%m%d')
     # 第一次设置用来获取真实交易时间
