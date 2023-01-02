@@ -53,6 +53,8 @@ CREATE TABLE
 
 `total` float COMMENT '总资产',
 
+`high`float COMMENT '最高价',
+
 PRIMARY KEY (`id`)
 
 ) ENGINE = InnoDB DEFAULT CHARSET=utf8;

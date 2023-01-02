@@ -620,6 +620,7 @@ def buy(stock_code, isCharge, day, isWhole):
     global transaction_signal
 
     price = get_price(day, 'close')
+    high = get_price(day, 'high')
     transaction_signal.append(1)
     # if (buy_check(percent, day)) & (principal > price * 100):
     cost = set_cost(day, principal, isWhole)
@@ -645,9 +646,9 @@ def buy(stock_code, isCharge, day, isWhole):
             num -= 100
             principal += price * 100
     if num > 0:
-        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-              (stock_code, day, True, price, num, charge, False, all)
+        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+              (stock_code, day, True, price, num, charge, False, all, high)
         db.commit_data(sql)
         print(day + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
             principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
@@ -864,6 +865,7 @@ def sell(stock_code, isCharge, day):
     global transaction_signal
     # if sell_check(percent, day) and num > 0:
     price = get_price(day, 'close')
+    high = get_price(day, 'high')
     transaction_signal.append(-1)
     principal += num * price
     all = principal
@@ -879,9 +881,9 @@ def sell(stock_code, isCharge, day):
         charge += stamp_tax
         principal -= charge
         all -= charge
-    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-          (stock_code, day, False, price, num, charge, False, all)
+    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+          (stock_code, day, False, price, num, charge, False, all, high)
     db.commit_data(sql)
     print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
         principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
@@ -1478,4 +1480,5 @@ def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole):
 # print(middle_sell_list)
 # print(not_buy_date)
 # print(not_sell_date)
-realtime('600073.SH', 9999999, 0.1, 0.3, False, True)
+
+# realtime('600073.SH', 9999999, 0.1, 0.3, False, True)

@@ -49,6 +49,7 @@ def insert_info():
     #数据插入表中
     con = engine.connect() #使用sqlalchemy的engine类型
     df = pull_name()
+    print(df)
     df.to_sql(name='stockname', con=con, if_exists='fail')
     con.close()
 
@@ -60,4 +61,3 @@ def get_name(id):
     cursor.execute(sql)
     data = cursor.fetchall()
     return data[0][0]
-

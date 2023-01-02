@@ -6,6 +6,8 @@ from pyecharts.charts import Kline, Bar, Grid, Line, Tab, Timeline
 import tushare as ts
 from getstockname import get_name
 from kline_days import plot_kline_volume_signal
+from data_modules import database_connection
+import pandas as pd
 
 
 def plot_kline(data, name) -> Kline:
@@ -139,16 +141,48 @@ def grid(data, name) -> Grid:
     return grid_chart
 
 
+# 从数据库获取所需数据
+def get_data_fromDB(stockcode):
+    db = database_connection.MySQLDb()
+    sql = "select * from backtest2 where code = '%s'" % str(stockcode)
+    df = pd.DataFrame(db.select_all(sql))
+    return df
+
+
+# 从数据库获取的数据中提取买卖点日期和价格
+def get_point_price(stockcode):
+    buy = []
+    sell = []
+    backtest = get_data_fromDB(stockcode)
+    buy_data = backtest[backtest['type'] == 1]
+    sell_data = backtest[backtest['type'] == 0]
+    buy_date = buy_data['date'].values.tolist()
+    buy_high = buy_data['high'].values.tolist()
+    sell_date = sell_data['date'].values.tolist()
+    sell_high = sell_data['high'].values.tolist()
+    for item in buy_date:
+        buy.append(datetime.datetime.strptime(item,'%Y%m%d').strftime('%Y-%m-%d'))
+    for item in sell_date:
+        sell.append(datetime.datetime.strptime(item,'%Y%m%d').strftime('%Y-%m-%d'))
+    return buy,buy_high,sell,sell_high
+
+
+
 def generate_html():
     tab = Tab()
     stockcode = input("输入股票代码：")
+    backtest = get_data_fromDB(stockcode)
+    backstart = datetime.datetime.strptime(backtest['date'].values[0],'%Y%m%d').strftime('%Y-%m-%d')
+    backend = datetime.datetime.strptime(backtest['date'].values[-1],'%Y%m%d').strftime('%Y-%m-%d')
+    sell_buy = get_point_price(stockcode)
+    stockcode = stockcode.split('.')[0]
     name = get_name(stockcode)
     today = datetime.date.today()
     offset = datetime.timedelta(days=-120)
     # 日期格式化
     finaldata = (today + offset).strftime('%Y-%m-%d')
-    print(finaldata, today)
-    df = ts.get_hist_data(stockcode,start=finaldata,end=str(today)).sort_index() #生成带有均线的日K图
+    # df = ts.get_hist_data(stockcode, start=finaldata, end=str(today)).sort_index()  # 生成带有均线的日K图
+    df_bak = ts.get_hist_data(stockcode, start=backstart, end=backend).sort_index()
     for freq in [5, 15, 30, 60]:  # 101为日代码
         data = ef.stock.get_quote_history(stockcode, klt=freq)  # 将数据按照时间排序
         data.set_index(["日期"], inplace=True)  # 设置日期为索引
@@ -156,5 +190,6 @@ def generate_html():
             tab.add(grid(data, name), str(freq) + "min")
         else:
             tab.add(grid(data, name), "日k")
-    tab.add(plot_kline_volume_signal(df,name),"日k")
+    # tab.add(plot_kline_volume_signal(df, name), "日k")
+    tab.add(plot_kline_volume_signal(df_bak,name,sell_buy),'回测日k')
     tab.render("min_kline.html")

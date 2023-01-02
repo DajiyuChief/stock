@@ -20,11 +20,11 @@ pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
 # print(type(data.index))
 
 
-def plot_kline_volume_signal(data, name) -> Grid:
-    days_date = data.index.values
-    high_price = data['high'].values
-    sell_point = dict(zip(days_date,high_price))
-    # print(sell_point)
+def plot_kline_volume_signal(data, name, buy_sell) -> Grid:
+    buy_date = buy_sell[0]
+    buy_high = buy_sell[1]
+    sell_date = buy_sell[2]
+    sell_high = buy_sell[3]
     kline = (
         Kline(init_opts=opts.InitOpts(width="1800px", height="1000px"))
         .add_xaxis(xaxis_data=list(data.index))
@@ -32,14 +32,6 @@ def plot_kline_volume_signal(data, name) -> Grid:
             series_name="日K",
             y_axis=data[["open", "close", "low", "high"]].values.tolist(),
             itemstyle_opts=opts.ItemStyleOpts(color="#ec0000", color0="#00da3c"),
-            markpoint_opts=opts.MarkPointOpts(
-                    data=[
-                        opts.MarkPointItem(coord=[days_date,high_price], name='test', value='买',
-                                           itemstyle_opts={'color': '#08a2f9'}),
-                        # opts.MarkPointItem(coord=[days_date[0], high_price[0]],name='test',value='买',itemstyle_opts={'color':'#08a2f9'}),
-                        # opts.MarkPointItem(coord=[days_date[-1], high_price[-1]],name='test',value='卖',itemstyle_opts={'color':'#2440b3'}),
-                    ]
-            ),
         )
         .set_global_opts(legend_opts=opts.LegendOpts(is_show=True, pos_bottom=10, pos_left="center"),
                          datazoom_opts=[
@@ -102,14 +94,24 @@ def plot_kline_volume_signal(data, name) -> Grid:
                              )),
                          )
     )
-    for i in range(0,len(days_date)):
+    for i in range(0,len(buy_date)):
         kline.add_yaxis(
             series_name="日K",
             y_axis=data[["open", "close", "low", "high"]].values.tolist(),
             markpoint_opts=opts.MarkPointOpts(
                         data=[
-                            opts.MarkPointItem(coord=[days_date[i],high_price[i]], name='test', value='买',
+                            opts.MarkPointItem(coord=[buy_date[i],buy_high[i]], name='test', value='买',
                                                itemstyle_opts={'color': '#08a2f9'}),
+                        ]
+                ),)
+    for i in range(0,len(sell_date)):
+        kline.add_yaxis(
+            series_name="日K",
+            y_axis=data[["open", "close", "low", "high"]].values.tolist(),
+            markpoint_opts=opts.MarkPointOpts(
+                        data=[
+                            opts.MarkPointItem(coord=[sell_date[i],sell_high[i]], name='test', value='卖',
+                                               itemstyle_opts={'color': '#f75d06'}),
                         ]
                 ),)
     bar = (
