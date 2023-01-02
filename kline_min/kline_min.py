@@ -9,6 +9,10 @@ from kline_days import plot_kline_volume_signal
 from data_modules import database_connection
 import pandas as pd
 
+# 显示所有行
+pd.set_option('display.max_rows', 1000)
+# 显示所有列
+pd.set_option('display.max_columns', 1000)
 
 def plot_kline(data, name) -> Kline:
     kline = (

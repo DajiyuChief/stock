@@ -39,7 +39,7 @@ def plot_kline_volume_signal(data, name, buy_sell) -> Grid:
                                  is_show=False,
                                  type_="inside",
                                  xaxis_index=[0, 1],
-                                 range_start=98,
+                                 range_start=50,
                                  range_end=100,
                              ),
                              opts.DataZoomOpts(
@@ -47,7 +47,7 @@ def plot_kline_volume_signal(data, name, buy_sell) -> Grid:
                                  xaxis_index=[0, 1],
                                  type_="slider",
                                  pos_top="85%",
-                                 range_start=98,
+                                 range_start=50,
                                  range_end=100,
                              ),
                          ],
