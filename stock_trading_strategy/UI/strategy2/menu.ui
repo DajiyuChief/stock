@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>menu</class>
+ <widget class="QMainWindow" name="menu">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>372</width>
+    <height>172</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>372</width>
+    <height>172</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>372</width>
+    <height>172</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>策略二</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QWidget" name="horizontalLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>40</y>
+      <width>331</width>
+      <height>80</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="recommend">
+       <property name="text">
+        <string>查看推荐股票（未完成）</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="realtime">
+       <property name="text">
+        <string>实时</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="back">
+       <property name="text">
+        <string>回测</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

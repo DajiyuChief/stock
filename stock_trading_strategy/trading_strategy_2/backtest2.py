@@ -3,7 +3,10 @@ import sys
 from collections import namedtuple
 from operator import attrgetter
 
+import easyquotation
+
 from data_modules import gol
+# from gol import set_value,get_value, _init
 import numpy as np
 import pandas as pd
 import pymysql
@@ -15,9 +18,11 @@ from chinese_calendar import is_workday, is_holiday
 import database_connection
 
 pro = ts.pro_api('f558cbc6b24ed78c2104e209a8a8986b33ec66b7c55bcfa2f46bc108')
+# 设置数据接口
+quotation = easyquotation.use('sina')  # 新浪 ['sina'] 腾讯 ['tencent', 'qq']
 
 # sys.path.append("../data_modules/database_connection.py")
-# 初始话全局变量
+# 初始化全局变量
 gol._init()
 
 # 回测前一交易日数据
@@ -99,20 +104,24 @@ MyStruct = namedtuple("MyStruct", "date priority type time")
 pd.set_option('display.max_rows', 1000)
 # 显示所有列
 pd.set_option('display.max_columns', 1000)
+# 区分回测还是实时
+trans_type = ''
 
 
-def set_info(start, end, stock):
+def set_info(start, end, stock, type):
     global stock_code
     global global_data
     global transaction_date
     global buy_signal, sell_signal
     stock_code = stock
     global_data = setdata(start, end, stock)
+    # print(global_data)
+    global_data_bak = global_data
+    gol._init()
     clear()
-    # transaction_date = []
-    # buy_signal = []
-    # sell_signal = []
-
+    if type == 'realtime':
+        insert_nowdata(stock)
+        # print(global_data)
     # boll线
     global_data['upper'], global_data['middle'], global_data['lower'] = ta.BBANDS(
         global_data.close.values,
@@ -130,15 +139,21 @@ def set_info(start, end, stock):
     global_data['close-open'] = global_data['close'] - global_data['open']
     global_data['yes_close-mid'] = global_data['pre_close'] - global_data['middle']
     global_data['mid-close'] = global_data['middle'] - global_data['close']
-    for i in range(len(global_data)):
-        transaction_date.append(global_data.trade_date[i])
-    transaction_date = sorted(transaction_date)
+    global_data['ma5'] = round(global_data['close'].rolling(5).mean(), 2)
+    global_data['ma10'] = round(global_data['close'].rolling(10).mean(), 2)
+    global_data['ma20'] = round(global_data['close'].rolling(20).mean(), 2)
+    gol.set_value(stock_code, global_data)
+    # for i in range(len(global_data)):
+    #     transaction_date.append(global_data.trade_date[i])
+    # transaction_date = sorted(transaction_date)
+    transaction_date = global_data['trade_date'].values.tolist()
     # global_data.to_csv('res' + stock + '.csv')
+    # print(global_data)
     return global_data
 
 
 def clear():
-    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list, not_buy_date, not_sell_date
+    global transaction_date, buy_signal, sell_signal, transaction_signal, middle_date, middle_buy_list, middle_sell_list, all_middle_buy_list, all_middle_sell_list, not_buy_date, not_sell_date,middle_start_date,can_middle_flag,middle_time,middle_last_date,special_sell_rsi,special_buy_rsi,condition_flag
     buy_signal = []
     sell_signal = []
     transaction_signal = []
@@ -151,6 +166,17 @@ def clear():
     all_middle_sell_list = []
     not_buy_date = []
     not_sell_date = []
+    middle_start_date = ''
+    # 中线是否可执行标志位
+    can_middle_flag = 1
+    # 记录当前中线条件的所属日期
+    middle_time = ''
+    # 记录上次中线条件下买卖的时间
+    middle_last_date = ''
+    transaction_date = []
+    special_buy_rsi = 0.2
+    special_sell_rsi = 0.1
+    condition_flag = 1
 
 
 def setdata(start_day, end_day, stock_code):
@@ -166,7 +192,51 @@ def setdata(start_day, end_day, stock_code):
     return df
 
 
-# 获取基金数据
+# 获取今日数据,插入全局数据
+def insert_nowdata(stockcode):
+    global global_data
+    try:
+        df_now = quotation.real(stock_code_convert(stockcode))
+        # print(df_now)
+    except:
+        return
+    df_now_dic = list(df_now.values())
+    today_split = df_now_dic[0]['date'].split('-')
+    today = today_split[0] + today_split[1] + today_split[2]
+    glo_date = global_data['trade_date'].values.tolist()
+    if today not in glo_date:
+        ts_code = stockcode
+        trade_date = today
+        open = float(df_now_dic[0]['open'])
+        high = float(df_now_dic[0]['high'])
+        low = float(df_now_dic[0]['low'])
+        close = float(df_now_dic[0]['now'])
+        pre_close = float(df_now_dic[0]['close'])
+        change = close - pre_close
+        pct_chg = round(change * 100 / pre_close, 4)
+        vol = float(df_now_dic[0]['turnover']) / 100
+        amount = float(df_now_dic[0]['volume']) / 1000
+        today_info = {'ts_code': ts_code, 'trade_date': trade_date, 'open': open, 'high': high, 'low': low,
+                      'close': close, 'pre_close': pre_close, 'change': change, 'pct_chg': pct_chg, 'vol': vol,
+                      'amount': amount}
+        # print(today_info)
+        global_data = global_data.append(today_info, ignore_index=True)
+
+def get_transdate(stockcode, start, end):
+    df = setdata(start, end, stockcode)
+    df_now = quotation.real(stock_code_convert(stockcode))
+    transdate = df['trade_date'].values.tolist()
+    df_now_dic = list(df_now.values())
+    today_split = df_now_dic[0]['date'].split('-')
+    today = today_split[0] + today_split[1] + today_split[2]
+    if today not in transdate:
+        transdate.append(today)
+    return transdate
+# 股票代码格式转换
+def stock_code_convert(stock_code):
+    lst = stock_code.split('.')
+    type = lst[1].lower()
+    return type + lst[0]
 
 
 # 计算两个日期之间的交易日
@@ -194,28 +264,34 @@ def workdays(start, end):
 
 # 日期前推 后推
 def date_calculate(date, days):
-    start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
-    day = date
-    if days > 0:
-        while days > 0:
-            start += timedelta(days=1)
-            day = start.strftime('%Y%m%d')
-            if day in transaction_date:
-                days = days - 1
-    elif days < 0:
-        while days < 0:
-            start -= timedelta(days=1)
-            day = start.strftime('%Y%m%d')
-            if day in transaction_date:
-                days = days + 1
-    return day
+    try:
+        start = datetime(int(date[0:4]), int(date[4:6]), int(date[6:8]))
+        day = date
+        if days > 0:
+            if date >= transaction_date[-days]:
+                return None
+            while days > 0:
+                start += timedelta(days=1)
+                day = start.strftime('%Y%m%d')
+                if day in transaction_date:
+                    days = days - 1
+        elif days < 0:
+            if date <= transaction_date[-days-1]:
+                return None
+            while days < 0:
+                start -= timedelta(days=1)
+                day = start.strftime('%Y%m%d')
+                if day in transaction_date:
+                    days = days + 1
+        return day
+    except:
+        return None
 
 
 # 返回交易时间列表
 def used_date(start, end):
     date1 = global_data.loc[global_data['trade_date'] == start].index[0] + 1
     date2 = global_data.loc[global_data['trade_date'] == end].index[0]
-    print(date1,date2)
     days = global_data[-date1:-date2]['trade_date']
     return days
 
@@ -273,18 +349,6 @@ def get_timestamp(date):
     return datetime.datetime.strptime(date, "%Y-%m-%d").timestamp()
 
 
-# def load_historical_data(stock_code, start_day, end_day):
-#     df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
-#     global yesterday_data
-#     yesterday_data = df.loc[1]
-#     global now_data
-#     now_data = df.loc[0]
-#     df = df.sort_values(by='trade_date', ascending=True)
-#     global history_data
-#     history_data = df
-#     return
-
-
 # 改写getBoll()
 def getBoll(date):
     global global_data
@@ -333,15 +397,26 @@ def check_span_days(start, end, type):
 
 # 检查中线条件
 def check_middle(last_date, date):
+    # print(last_date,date,transaction_date[-1],datetime.now())
     global variety_rsi
     global condition_flag
     global condition_step
     global middle_date, middle_buy_list, middle_sell_list, middle_start_date, middle_last_date
+    # 防止最后三天取不到
+    if date == transaction_date[-1]:
+        # print('sss')
+        return
     flag = []
     nextday_index = -1
     day2 = date_calculate(date, 1)
+    if day2 == transaction_date[-1]:
+        return
     day3 = date_calculate(day2, 1)
+    if day3 == transaction_date[-1]:
+        return
     day4 = date_calculate(day3, 1)
+    if day4 == transaction_date[-1]:
+        return
     flag.append(buy_check_middle(last_date, date) or sell_check_middle(last_date, date))
     if flag[0] is True:
         # 第一次不看rsi变化率
@@ -400,7 +475,7 @@ def check_middle(last_date, date):
             # 下穿
             if get_price(date, 'close') < getBoll(date)[1]:
                 # 看后三天有没有上穿
-                for i in range(1,4):
+                for i in range(1, 4):
                     if buy_check_middle(date, date_calculate(date, i)):
                         # fourdays_later四天后，若收盘价高于中线，买入
                         fourdays_later = date_calculate(date, 4)
@@ -423,6 +498,7 @@ def check_middle(last_date, date):
             condition_flag = 1
             variety_rsi = 0.1
             middle_date = sorted(middle_buy_list + middle_sell_list, key=attrgetter("date"))
+            # print('end',date,datetime.now())
         return middle_buy_list, middle_sell_list, middle_date
 
 
@@ -576,11 +652,15 @@ def buy_check_special(end):
     if high >= highBoll:
         flag1 = True
     if flag1:
+        if date == transaction_date[-1]:
+            return
         # 向下循环
+        # print(date,transaction_date[-1])
         while date is not None:
             date = date_calculate(date, 1)
-            span_days = workdays(datetime.strptime(end, '%Y%m%d'), datetime.strptime(date, '%Y%m%d'))
+            # span_days = workdays(datetime.strptime(end, '%Y%m%d'), datetime.strptime(date, '%Y%m%d'))
             if date is not None:
+                span_days = workdays(datetime.strptime(end, '%Y%m%d'), datetime.strptime(date, '%Y%m%d'))
                 close = get_price(date, 'close')
                 high = get_price(date, 'high')
                 # 下降达到中界线
@@ -612,7 +692,7 @@ def is_buy_condition_three(date):
     return False
 
 
-def buy(stock_code, isCharge, day, isWhole):
+def buy(stock_code, isCharge, day, isWhole, type):
     global num
     global cost
     global all
@@ -646,9 +726,14 @@ def buy(stock_code, isCharge, day, isWhole):
             num -= 100
             principal += price * 100
     if num > 0:
-        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
-                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
-              (stock_code, day, True, price, num, charge, False, all, high)
+        if type == 'backtest':
+            sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                        VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+                  (stock_code, day, True, price, num, charge, False, all, high)
+        elif type == 'realtime':
+            sql = "INSERT IGNORE INTO actual2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+                  (stock_code, day, True, price, num, charge, False, all, high)
         db.commit_data(sql)
         print(day + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
             principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
@@ -756,7 +841,6 @@ def sell_check_special(end):
     # 触及下沿线
     global special_sell_rsi
     flag1 = False
-
     flag2 = False
     date = end
     low = global_data.loc[global_data['trade_date'] == end].low.values[0]
@@ -767,9 +851,11 @@ def sell_check_special(end):
         flag1 = True
     if flag1:
         # 回溯前30天
+        if date == transaction_date[-1]:
+            return
         while date is not None:
             date = date_calculate(date, 1)
-            next_date = date_calculate(date, 1)
+            # next_date = date_calculate(date, 1)
             if date is not None:
                 span_days = workdays(datetime.strptime(end, '%Y%m%d'), datetime.strptime(date, '%Y%m%d'))
                 close = get_price(date, 'close')
@@ -785,8 +871,10 @@ def sell_check_special(end):
                             # print('sell 特2触低线', date)
                             flag2 = True
                             break
-                        elif get_price(next_date, 'low') < getBoll(next_date)[2]:
-                            sell_signal.append(MyStruct(next_date, 1, 'sell', next_date))
+                        elif date == transaction_date[-1]:
+                            return
+                        elif get_price(date_calculate(date, 1), 'low') < getBoll(date_calculate(date, 1))[2]:
+                            sell_signal.append(MyStruct(date_calculate(date, 1), 1, 'sell', date_calculate(date, 1)))
                             break
     return flag2
 
@@ -857,7 +945,7 @@ def sell_check(percent, end):
     return False
 
 
-def sell(stock_code, isCharge, day):
+def sell(stock_code, isCharge, day, type):
     global num
     global cost
     global all
@@ -881,9 +969,14 @@ def sell(stock_code, isCharge, day):
         charge += stamp_tax
         principal -= charge
         all -= charge
-    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
-                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
-          (stock_code, day, False, price, num, charge, False, all, high)
+    if type == 'backtest':
+        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+              (stock_code, day, False, price, num, charge, False, all, high)
+    elif type == 'realtime':
+        sql = "INSERT IGNORE INTO actual2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                            VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+              (stock_code, day, False, price, num, charge, False, all, high)
     db.commit_data(sql)
     print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
         principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
@@ -891,7 +984,7 @@ def sell(stock_code, isCharge, day):
 
 
 # 止损
-def stop_loss(stock_code, isCharge, day):
+def stop_loss(stock_code, isCharge, day, type):
     global num
     global cost
     global all
@@ -900,6 +993,7 @@ def stop_loss(stock_code, isCharge, day):
     global transaction_signal
 
     price = get_price(day, 'close')
+    high = get_price(day, 'high')
     transaction_signal.append(-1)
     print("强制止损")
     principal += num * price
@@ -916,9 +1010,14 @@ def stop_loss(stock_code, isCharge, day):
         charge += stamp_tax
         principal -= charge
         all -= charge
-    sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                            VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-          (stock_code, day, False, price, num, charge, True, all)
+    if type == 'backtest':
+        sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+              (stock_code, day, False, price, num, charge, True, all, high)
+    elif type == 'realtime':
+        sql = "INSERT IGNORE INTO actual2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total, HIGH) \
+                                                                                        VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f, %f)" % \
+              (stock_code, day, False, price, num, charge, True, all, high)
     db.commit_data(sql)
     print(day + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
         principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
@@ -946,171 +1045,14 @@ def check_stop(stoploss):
     if last_date < gol_end and len(buy_date) == 1:
         buy_price = get_price(last_date, 'close')
         while last_date < gol_end:
-            last_date = date_calculate(last_date,1)
+            last_date = date_calculate(last_date, 1)
+            if last_date is None:
+                return stop_signal
             now_price = get_price(last_date, 'close')
             if now_price < (1 - stoploss) * buy_price:
                 stop_signal.append(MyStruct(last_date, 1, 'stop', buy_date[0]))
                 break
     return stop_signal
-
-
-
-# 从buy_signal和sell_signal从匹配交易日期
-def transaction(stock_code, stoploss, isCharge, isWhole):
-    global buy_signal, sell_signal
-    # 去重
-    buy_signal = np.unique(sorted(buy_signal))
-    sell_signal = np.unique(sorted(sell_signal))
-    print('全部买点', buy_signal)
-    print('全部卖点', sell_signal)
-    trans_flag = 1
-    while len(buy_signal) != 0:
-        buy_date = buy_signal[0]
-        buy_price = get_price(buy_date, 'close')
-        if len(sell_signal) != 0:
-            sell_date = sell_signal[0]
-            sell_price = get_price(sell_date, 'close')
-            if (buy_date < sell_date) & trans_flag == 1:
-                buy(stock_code, isCharge, buy_date, buy_price, isWhole)
-                if not check_stop(buy_date, sell_date, stoploss)[0]:
-                    sell(stock_code, isCharge, sell_date, sell_price)
-                    last_sell_date = sell_signal[0]
-                    sell_signal = np.delete(sell_signal, 0)
-                else:
-                    sell_date = check_stop(buy_date, sell_date, stoploss)[1]
-                    print("stop", sell_date)
-                    sell(stock_code, isCharge, sell_date, sell_price)
-                buy_signal = np.delete(buy_signal, 0)
-                trans_flag = 0
-            elif buy_date >= sell_date:
-                sell_signal = np.delete(sell_signal, 0)
-            elif buy_date <= last_sell_date:
-                buy_signal = np.delete(buy_signal, 0)
-            elif (buy_date > last_sell_date) & (buy_date < sell_date) & trans_flag == 0:
-                buy(stock_code, isCharge, buy_date, buy_price, isWhole)
-                if not check_stop(buy_date, sell_date, stoploss)[0]:
-                    sell(stock_code, isCharge, sell_date, sell_price)
-                    last_sell_date = sell_signal[0]
-                    sell_signal = np.delete(sell_signal, 0)
-                else:
-                    sell_date = check_stop(buy_date, sell_date, stoploss)[1]
-                    print("stop", sell_date)
-                    sell(stock_code, isCharge, sell_date, sell_price)
-                buy_signal = np.delete(buy_signal, 0)
-        else:
-            if buy_date > last_sell_date:
-                buy(stock_code, isCharge, buy_date, buy_price, isWhole)
-                break
-            else:
-                buy_signal = np.delete(buy_signal, 0)
-
-
-# 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
-def trading_strategy2_whole(principal, stock_code, percent, stoploss, span, isCharge):
-    global history_240
-    # 取数起始日期
-    start = history_240['trade_date'][len(history_240) - 1]
-    start = history_240.loc[history_240['trade_date'] == start].index[0]
-    # 回测日期列表
-    day = []
-    try:
-        # 此处多计入不做交易的周六 日
-        day = history_240['trade_date'][-(span):]
-        print(day)
-    except Exception as e:
-        print(e)
-    # 仓位，单位是股数
-    num = 0
-    # 总资产数
-    all = principal
-    # 起始资金数，用于判断是否需要强制止损
-    begin = principal
-    db = database_connection.MySQLDb()
-    for d in day:
-        end = history_240.loc[history_240['trade_date'] == d].index[0]
-        global history_data
-        history_data = history_240.loc[start:end]
-        history_data = history_data.reset_index(drop=True)
-        history_data = history_data.iloc[::-1]
-        history_data = history_data.reset_index(drop=True)
-        history_data = history_data.sort_index(ascending=False)
-        global now_data
-        now_data = history_240[history_240['trade_date'] == d]
-        price = now_data['close'].values[0]
-        # 单笔交易至少有100股
-        if buy_check(percent) and principal > price * 100:
-            cost = int(principal / (price * 100))
-            num += cost * 100
-            principal -= cost * price * 100
-            charge = 0
-            if isCharge:
-                charge = cost * price * 100 * 0.0003
-                # 佣金最低5元
-                if charge < 5:
-                    charge = 5
-                principal -= charge
-                all -= charge
-                while principal < 0:
-                    cost -= 1
-                    num -= 100
-                    principal += price * 100
-            if num > 0:
-                sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                            VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-                      (stock_code, d, True, price, cost * 100, charge, False, all)
-                db.commit_data(sql)
-                print(d + " " + "buy: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-                    principal) + " 总资产： " + str(all) + " 手续费： " + str(charge))
-        # 确保有可卖出的股数
-        if sell_check(percent) and num > 0:
-            principal += num * price
-            all = principal
-            charge = 0
-            stamp_tax = 0
-            cost = int(principal / (price * 100))
-            if isCharge:
-                charge = cost * price * 100 * 0.0003
-                # 佣金最低5元
-                if charge < 5:
-                    charge = 5
-                # 印花税
-                stamp_tax = cost * price * 100 * 0.001
-                charge += stamp_tax
-                principal -= charge
-                all -= charge
-            sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                    VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-                  (stock_code, d, False, price, num, charge, False, all)
-            db.commit_data(sql)
-            print(d + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-                principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
-            num = 0
-        # 强制止损
-        if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
-            print("强制止损")
-            principal += num * price
-            all = principal
-            charge = 0
-            stamp_tax = 0
-            if isCharge:
-                charge = cost * price * 100 * 0.0003
-                # 佣金最低5元
-                if charge < 5:
-                    charge = 5
-                # 印花税
-                stamp_tax = cost * price * 100 * 0.001
-                charge += stamp_tax
-                principal -= charge
-                all -= charge
-            sql = "INSERT IGNORE INTO backtest2(CODE, DATE, TYPE, PRICE, NUM, poundage, stoploss, total) \
-                                                                                VALUES ('%s', '%s',  %d,  %f,  %f, %f, %d, %f)" % \
-                  (stock_code, d, False, price, num, charge, False, all)
-            db.commit_data(sql)
-            print(d + " " + "sell: " + str(num) + "股 " + "价格：" + str(price) + " 剩余本金： " + str(
-                principal) + " 总资产： " + str(all) + " 佣金： " + str(charge) + " 印花税： " + str(stamp_tax))
-            num = 0
-    print("共计： " + str(span) + "个交易日")
-    return all
 
 
 def winning_percentage():
@@ -1160,24 +1102,27 @@ def get_middle_len(date):
             tran.append(item)
     return len(tran)
 
+
 # 获取中线条件中日期的位置
 def get_middle_position(date, time):
     tran = []
     for item in middle_date:
         if item.time == time and item.priority == 2:
             tran.append(item.date)
+    # print(tran,date,time,middle_date)
     return tran.index(date)
 
+
 def new_trans(stock_code, stoploss, isCharge, isWhole):
-    global can_middle_flag, condition_step, middle_time
+    global can_middle_flag, condition_step, middle_time, middle_date
     # 止损日期
     stop_signal = check_stop(stoploss)
     trans = buy_signal + sell_signal + stop_signal
-    # shanchu
     trans = list(set(trans))
     trans = sorted(trans, key=attrgetter("date"))
-    check_stop(stoploss)
-    print(trans)
+    middle_date = [item for item in trans if item.priority == 2]
+    # print(trans)
+    # check_stop(stoploss)
     # print('buy', buy_signal)
     # print('sell', sell_signal)
     # 记录是否有中线条件执行
@@ -1201,7 +1146,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 trans.pop(0)
                 continue
             if item.priority == 1:
-                buy(stock_code, isCharge, item.date, isWhole)
+                buy(stock_code, isCharge, item.date, isWhole, trans_type)
                 trans.pop(0)
                 trans_flag = 'sell'
                 last_buy_date = item.date
@@ -1212,39 +1157,43 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                         # print(2, item.time, item.date)
                         # print(item)
                         middle_time = item.time
-                        buy(stock_code, isCharge, item.date, isWhole)
+                        buy(stock_code, isCharge, item.date, isWhole, trans_type)
                         trans.pop(0)
                         trans_flag = 'sell'
                         last_buy_date = item.date
                         condition_step = condition_step + 1
                     # item.time != item.date 情况
-                    elif date_calculate(item.time,3) > item.date:
+                    elif date_calculate(item.time, 3) is not None and date_calculate(item.time, 3) > item.date:
                         # print(2, item.time, item.date)
+                        # print(item in middle_date)
                         middle_time = item.time
-                        buy(stock_code, isCharge, item.date, isWhole)
+                        buy(stock_code, isCharge, item.date, isWhole, trans_type)
                         trans.pop(0)
                         trans_flag = 'sell'
                         last_buy_date = item.date
                         condition_step = get_middle_position(item.date, item.time) + 1
                     else:
+                        # print(item,1)
                         trans.pop(0)
                         continue
                 elif item.type == 'notbuy' and item.time == middle_time:
+                    # print(item, 2)
                     trans.pop(0)
                     condition_step = condition_step + 1
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
                     # print(item.time, item.date,middle_time)
-                    buy(stock_code, isCharge, item.date, isWhole)
+                    buy(stock_code, isCharge, item.date, isWhole, trans_type)
                     trans.pop(0)
                     trans_flag = 'sell'
                     last_buy_date = item.date
                     condition_step = condition_step + 1
                 else:
+                    # print(condition_step,item, get_middle_len(middle_time),middle_time)
                     trans.pop(0)
                 if condition_step == get_middle_len(middle_time):
                     condition_step = 0
             elif item.priority == 3:
-                buy(stock_code, isCharge, item.date, isWhole)
+                buy(stock_code, isCharge, item.date, isWhole, trans_type)
                 trans.pop(0)
                 trans_flag = 'sell'
                 last_buy_date = item.date
@@ -1256,14 +1205,14 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 continue
             if item.type == 'stop':
                 if item.time == last_buy_date:
-                    stop_loss(stock_code, isCharge, item.date)
+                    stop_loss(stock_code, isCharge, item.date, trans_type)
                     trans.pop(0)
                     trans_flag = 'buy'
                     condition_step = 0
                     continue
             if item.priority == 1:
                 # print(1, item.time, item.date)
-                sell(stock_code, isCharge, item.date)
+                sell(stock_code, isCharge, item.date, trans_type)
                 trans.pop(0)
                 trans_flag = 'buy'
                 condition_step = 0
@@ -1272,14 +1221,14 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     if item.time == item.date:
                         # print(2,item.time, item.date)
                         middle_time = item.time
-                        sell(stock_code, isCharge, item.date)
+                        sell(stock_code, isCharge, item.date, trans_type)
                         trans.pop(0)
                         trans_flag = 'buy'
                         condition_step = condition_step + 1
-                    elif date_calculate(item.time,3) > item.date:
+                    elif date_calculate(item.time, 3) is not None and date_calculate(item.time, 3)> item.date:
                         # print(2, item.time, item.date)
                         middle_time = item.time
-                        sell(stock_code, isCharge, item.date)
+                        sell(stock_code, isCharge, item.date, trans_type)
                         trans.pop(0)
                         trans_flag = 'buy'
                         last_buy_date = item.date
@@ -1292,7 +1241,7 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                     condition_step = condition_step + 1
                 elif condition_step < get_middle_len(middle_time) and item.time == middle_time:
                     # print(2,item.time, item.date)
-                    sell(stock_code, isCharge, item.date)
+                    sell(stock_code, isCharge, item.date, trans_type)
                     trans.pop(0)
                     trans_flag = 'buy'
                     condition_step = condition_step + 1
@@ -1301,12 +1250,10 @@ def new_trans(stock_code, stoploss, isCharge, isWhole):
                 if condition_step == get_middle_len(middle_time):
                     condition_step = 0
             elif item.priority == 3:
-                sell(stock_code, isCharge, item.date)
+                sell(stock_code, isCharge, item.date, trans_type)
                 trans.pop(0)
                 trans_flag = 'buy'
                 condition_step = 0
-
-
 
 
 # 参数从左到右依次是初始本金，股票代码，RSI-6变化比率，止损比率，回测周期，是否计算手续费
@@ -1364,7 +1311,7 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
             check_middle(yesterday, d)
         # 强制止损
         if num != 0 and all < begin and abs(all - principal - begin) >= stoploss * (all - principal):
-            stop_loss(stock_code, isCharge, d)
+            stop_loss(stock_code, isCharge, d, trans_type)
     # transaction(stock_code, stoploss, isCharge, isWhole)
     new_trans(stock_code, stoploss, isCharge, isWhole)
 
@@ -1374,35 +1321,36 @@ def trading_strategy2_position(principa, stock_code, percent, stoploss, span, is
     return all
 
 
-def backtest2(span, stock_code, principal, percent, stoploss, isCharge, isWhole):
-    day = date.today()  # 当前日期
-    now = datetime.now()
-    delta = timedelta(days=240 * 1.5 + 100)  # 采取时间差*1.5+100的方式确保能获得足够的交易日
-    n_days_forward = now - delta  # 当前日期向前推n天的时间
-    start_day = n_days_forward.strftime('%Y%m%d')
-    end_day = day.strftime('%Y%m%d')
-    df = []
-    while True:
-        try:
-            df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
-            break
-        except:
-            continue
-    df = df.sort_values(by='trade_date', ascending=True)
-    global history_240
-    history_240 = df
-    global history_data
-    history_data = df
-    db = database_connection.MySQLDb()
-    db.clean_table("TRUNCATE TABLE `backtest2`;")
-    if isWhole:
-        return trading_strategy2_whole(principal, stock_code, percent, stoploss, span, isCharge)
-    else:
-        return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge)
+# def backtest2(span, stock_code, principal, percent, stoploss, isCharge, isWhole):
+#     day = date.today()  # 当前日期
+#     now = datetime.now()
+#     delta = timedelta(days=240 * 1.5 + 100)  # 采取时间差*1.5+100的方式确保能获得足够的交易日
+#     n_days_forward = now - delta  # 当前日期向前推n天的时间
+#     start_day = n_days_forward.strftime('%Y%m%d')
+#     end_day = day.strftime('%Y%m%d')
+#     df = []
+#     while True:
+#         try:
+#             df = pro.daily(ts_code=stock_code, start_date=start_day, end_date=end_day)
+#             break
+#         except:
+#             continue
+#     df = df.sort_values(by='trade_date', ascending=True)
+#     global history_240
+#     history_240 = df
+#     global history_data
+#     history_data = df
+#     db = database_connection.MySQLDb()
+#     db.clean_table("TRUNCATE TABLE `backtest2`;")
+#     if isWhole:
+#         return trading_strategy2_whole(principal, stock_code, percent, stoploss, span, isCharge)
+#     else:
+#         return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge)
 
 
 def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss, isCharge, isWhole):
-    global gol_start, gol_end
+    global gol_start, gol_end, trans_type
+    trans_type = 'backtest'
     start = datetime(int(start_day[0:4]), int(start_day[4:6]), int(start_day[6:8]))
     end = datetime(int(end_day[0:4]), int(end_day[4:6]), int(end_day[6:8]))
     startbak = start_day
@@ -1416,33 +1364,47 @@ def date_backtest2(start_day, end_day, stock_code, principal, percent, stoploss,
     start_day = n_days_forward.strftime('%Y%m%d')
     end_day = day.strftime('%Y%m%d')
     # 往后推半个月 确保能取满周期
-    set_info(start_day, end_day, stock_code)
+    set_info(start_day, end_day, stock_code, 'backtest')
     transdate = used_date(startbak, endbak)
     gol_start = startbak
     gol_end = endbak
     print(start, end, span, day, delta, n_days_forward, start_day, end_day, stock_code)
-    db = database_connection.MySQLDb()
+    # db = database_connection.MySQLDb()
     db.clean_table("TRUNCATE TABLE `backtest2`;")
     return trading_strategy2_position(principal, stock_code, percent, stoploss, span, isCharge, isWhole, transdate)
 
-def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole):
-    global gol_end
+
+def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole, days):
+    global gol_end, trans_type
+    trans_type = 'realtime'
     end = date.today()
-    offset1 = timedelta(days=-(240 * 1.5 + 100))
-    offset2 = timedelta(days=-120)
+    offset1 = timedelta(days=-(days * 3 + 100))
+    # offset2 = timedelta(days=-days)
     # 日期格式化
     start = end + offset1
     end_ymd = end.strftime('%Y%m%d')
     gol_end = end_ymd
     start_ymd = (end + offset1).strftime('%Y%m%d')
-    start_ymd_real = (end + offset2).strftime('%Y%m%d')
+    # start_ymd_real = (end + offset2).strftime('%Y%m%d')
     # 第一次设置用来获取真实交易时间
-    set_info(start_ymd_real,end_ymd,stock_code)
-    transdate = global_data['trade_date'].values
+    # set_info(start_ymd_real, end_ymd, stock_code, 'realtime')
+    # print(global_data)
+    # transdate = global_data['trade_date'].values
     # 第二次设置长时间，保证取到所有需要的值
-    set_info(start_ymd,end_ymd,stock_code)
+    set_info(start_ymd, end_ymd, stock_code, 'realtime')
+    # print(global_data['trade_date'][-days:].values.tolist())
+    # transdate = get_transdate(stock_code,start_ymd_real,end_ymd)
+    transdate = global_data['trade_date'][-days:].values.tolist()
+    # print(transdate)
+    # print(transdate,transdate2)
+    # print(gol.get_value(stock_code))
+    print(transdate[0], transdate[-1], stock_code)
+    # print(global_data)
+    # db = database_connection.MySQLDb()
     db.clean_table("TRUNCATE TABLE `actual2`;")
-    return trading_strategy2_position(principal, stock_code, percent, stoploss, 120, isCharge, isWhole, transdate)
+    return trading_strategy2_position(principal, stock_code, percent, stoploss, days, isCharge, isWhole, transdate)
+
+
 # 调用示例：
 # backtest2(30, '300917.SZ', 9999999, 0.1, 0.1, False, True)
 # date_backtest2('20220321', '20220613', '600256.SH', 9999999, 0.1, 0.3, False, True)
@@ -1481,4 +1443,5 @@ def realtime(stock_code, principal, percent, stoploss, isCharge, isWhole):
 # print(not_buy_date)
 # print(not_sell_date)
 
+# insert_nowdata('600073.SH')
 # realtime('600073.SH', 9999999, 0.1, 0.3, False, True)
